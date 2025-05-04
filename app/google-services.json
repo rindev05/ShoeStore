@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "620529000567",
+    "project_id": "shoestore1-2cbde",
+    "storage_bucket": "shoestore1-2cbde.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:620529000567:android:5112bd6518c40db7ab6672",
+        "android_client_info": {
+          "package_name": "com.example.shoestore"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCthD-QmWH-yd4fLv1P-MQcodFG6Gt1dUs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

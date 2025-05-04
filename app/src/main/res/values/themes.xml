@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.ShoeStore.NoActionBar" parent="Theme.ShoeStore">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+    <style name="Theme.ShoeStore" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

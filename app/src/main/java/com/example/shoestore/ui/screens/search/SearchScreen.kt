@@ -1,0 +1,451 @@
+package com.example.shoestore.ui.screens.search
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.*
+import androidx.compose.material.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
+import com.example.shoestore.R
+import com.example.shoestore.data.model.Product
+import com.google.accompanist.pager.*
+import kotlinx.coroutines.launch
+import java.text.NumberFormat
+import java.util.Locale
+
+@Composable
+fun AppBar(onSearchClick: () -> Unit) {
+    TopAppBar(
+        backgroundColor = Color.Transparent,
+        elevation = 0.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.shoe_logo),
+                contentDescription = "Logo",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(120.dp)
+            )
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = "Search Icon",
+                modifier = Modifier
+                    .size(24.dp)
+                    .clickable { onSearchClick() }
+            )
+        }
+    }
+}
+
+@Composable
+fun SearchPopup(onDismiss: () -> Unit) {
+    var searchQuery by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = {
+                    focusManager.clearFocus()
+                    onDismiss()
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color.Black
+                    )
+                }
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
+                    placeholder = { Text("Search for shoes...") },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Clear",
+                                    tint = Color.Gray
+                                )
+                            }
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = {
+                        focusManager.clearFocus()
+                    }),
+                    singleLine = true,
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                        focusedBorderColor = Color.Black,
+                        unfocusedBorderColor = Color.Gray
+                    )
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Search Suggestions or Results",
+                style = MaterialTheme.typography.body1,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+}
+
+@Composable
+fun SearchScreen(navController: NavController) {
+    val products = listOf(
+        Product(1, "Nike Dunk Low Retro", 2929000.0, 4.5f, R.drawable.sa12_1, "Men's Shoes"),
+        Product(2, "Nike Pegasus Plus", 5279000.0, 4.0f, R.drawable.sa13_1, "Men's Road Running Shoes"),
+        Product(3, "Nike Pegasus 41", 2929000.0, 4.2f, R.drawable.sb13_1, "Men's Road Running Shoes"),
+        Product(4, "Nike P-6000", 2929000.0, 4.3f, R.drawable.sn16_1, "Shoes")
+    )
+
+    var showSearchPopup by remember { mutableStateOf(false) }
+
+    Scaffold(
+        topBar = {
+            AppBar(onSearchClick = { showSearchPopup = true })
+        },
+        bottomBar = { BottomNavigationBar(navController = navController) }
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            item {
+                Spacer(modifier = Modifier.height(5.dp))
+                BannerSection()
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            // Thanh lọc (Filter Tabs) với ScrollableTabRow
+            item {
+                val tabList = listOf(
+                    "All", "Adidas", "Nike", "Biti's", "Converse", "New Balance", "Puma"
+                )
+                var selectedTabIndex by remember { mutableStateOf(0) }
+
+                ScrollableTabRow(
+                    selectedTabIndex = selectedTabIndex,
+                    backgroundColor = Color.White,
+                    contentColor = Color.Black,
+                    edgePadding = 8.dp,
+                    indicator = { tabPositions ->
+                        TabRowDefaults.Indicator(
+                            Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
+                            color = Color.Black
+                        )
+                    }
+                ) {
+                    tabList.forEachIndexed { index, tabTitle ->
+                        Tab(
+                            selected = selectedTabIndex == index,
+                            onClick = { selectedTabIndex = index },
+                            modifier = Modifier.padding(horizontal = 8.dp),
+                            text = {
+                                Text(
+                                    text = tabTitle,
+                                    fontSize = 14.sp,
+                                    color = if (selectedTabIndex == index) Color.Black else Color.Gray
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Danh sách sản phẩm
+            items(products.chunked(2)) { rowItems ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    rowItems.forEach { product ->
+                        ProductItem(
+                            product = product,
+                            onClick = { navController.navigate("product/${product.id}") }
+                        )
+                    }
+                    if (rowItems.size < 2) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+
+        // Hiển thị popup tìm kiếm khi showSearchPopup = true
+        if (showSearchPopup) {
+            SearchPopup(onDismiss = { showSearchPopup = false })
+        }
+    }
+}
+
+@OptIn(ExperimentalPagerApi::class)
+@Composable
+fun BannerSection() {
+    val pagerState = rememberPagerState()
+    val images = listOf(
+        R.drawable.banner3,
+        R.drawable.banner2,
+        R.drawable.banner1,
+        R.drawable.banner4,
+        R.drawable.banner5,
+        R.drawable.banner7,
+        R.drawable.banner8
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 5.dp) // Thêm padding ngang để banner trông đẹp hơn
+    ) {
+        HorizontalPager(
+            count = images.size,
+            state = pagerState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+        ) { page ->
+            Image(
+                painter = painterResource(id = images[page]),
+                contentDescription = "Banner Image $page",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(16.dp))
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        HorizontalPagerIndicator(
+            pagerState = pagerState,
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .padding(8.dp),
+            activeColor = Color.Black
+        )
+    }
+}
+
+@Composable
+fun ProductItem(product: Product, onClick: () -> Unit) {
+    val numberFormat = remember {
+        NumberFormat.getNumberInstance(Locale("vi", "VN")).apply {
+            minimumFractionDigits = 0
+            maximumFractionDigits = 0
+        }
+    }
+    Card(
+        modifier = Modifier
+            .padding(0.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+        elevation = 4.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box {
+                Image(
+                    painter = painterResource(id = product.imageUrl),
+                    contentDescription = product.name,
+                    modifier = Modifier
+                        .size(150.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFF6F6F6))
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Bestseller",
+                color = Color.Red,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = product.name,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            Text(
+                text = product.description,
+                fontSize = 12.sp,
+                color = Color.Gray
+            )
+            Text(
+                text = "${numberFormat.format(product.price)} đ",
+                fontSize = 12.sp,
+                color = Color.Black,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+fun BottomNavigationBar(navController: NavController) {
+    val selectedIndex = remember { mutableStateOf(1) }
+    val scope = rememberCoroutineScope()
+    BottomNavigation(
+        backgroundColor = Color.White,
+        contentColor = Color.Black
+    ) {
+        BottomNavigationItem(
+            selected = selectedIndex.value == 0,
+            onClick = {
+                scope.launch { selectedIndex.value = 0 }
+                navController.navigate("home")
+            },
+            icon = {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            if (selectedIndex.value == 0) Color.Black else Color.Transparent,
+                            shape = RoundedCornerShape(24.dp)
+                        )
+                ) {
+                    Icon(
+                        Icons.Default.Home,
+                        contentDescription = "Home",
+                        tint = if (selectedIndex.value == 0) Color.White else Color.Black,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            },
+            alwaysShowLabel = false
+        )
+        BottomNavigationItem(
+            selected = selectedIndex.value == 1,
+            onClick = {
+                scope.launch { selectedIndex.value = 1 }
+                navController.navigate("SearchScreen")
+            },
+            icon = {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            if (selectedIndex.value == 1) Color.Black else Color.Transparent,
+                            shape = RoundedCornerShape(24.dp)
+                        )
+                ) {
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = if (selectedIndex.value == 1) Color.White else Color.Black,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            },
+            alwaysShowLabel = false
+        )
+        BottomNavigationItem(
+            selected = selectedIndex.value == 2,
+            onClick = {
+                scope.launch { selectedIndex.value = 2 }
+                navController.navigate("CartScreen")
+            },
+            icon = {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            if (selectedIndex.value == 2) Color.Black else Color.Transparent,
+                            shape = RoundedCornerShape(24.dp)
+                        )
+                ) {
+                    Icon(
+                        Icons.Default.ShoppingBag,
+                        contentDescription = "Cart",
+                        tint = if (selectedIndex.value == 2) Color.White else Color.Black,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            },
+            alwaysShowLabel = false
+        )
+        BottomNavigationItem(
+            selected = selectedIndex.value == 3,
+            onClick = {
+                scope.launch { selectedIndex.value = 3 }
+                navController.navigate("ProfileScreen")
+            },
+            icon = {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            if (selectedIndex.value == 3) Color.Black else Color.Transparent,
+                            shape = RoundedCornerShape(24.dp)
+                        )
+                ) {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = "Profile",
+                        tint = if (selectedIndex.value == 3) Color.White else Color.Black,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            },
+            alwaysShowLabel = false
+        )
+    }
+}
