@@ -10,7 +10,7 @@ import com.example.shoestore.ui.account.AccountScreen
 import com.example.shoestore.ui.address.AddressAddScreen
 import com.example.shoestore.ui.address.AddressDetailScreen
 import com.example.shoestore.ui.address.AddressScreen
-import com.example.shoestore.ui.auth.login.ForgotPasswordScreen
+import com.example.shoestore.ui.auth.ForgotPasswordScreen
 import com.example.shoestore.ui.auth.login.LoginScreen
 import com.example.shoestore.ui.auth.signup.SignUpScreen
 import com.example.shoestore.ui.cart.CartScreen

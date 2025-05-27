@@ -12,10 +12,7 @@ import androidx.compose.material.BottomNavigationItem
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,13 +23,52 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.shoestore.R
-import com.example.shoestore.ui.auth.signup.SignUpScreen
 import com.example.shoestore.ui.theme.ShoeStoreTheme
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(navController: NavController) {
+    // States cho dữ liệu người dùng
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var profileImage by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(true) }
+
+    // Lấy UID của người dùng hiện tại
+    val currentUser = FirebaseAuth.getInstance().currentUser
+    val userId = currentUser?.uid
+
+    // Lấy dữ liệu từ Firestore
+    LaunchedEffect(userId) {
+        if (userId != null) {
+            FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(userId)
+                .get()
+                .addOnSuccessListener { document ->
+                    if (document.exists()) {
+                        firstName = document.getString("first_name") ?: ""
+                        lastName = document.getString("last_name") ?: ""
+                        email = document.getString("email") ?: ""
+                        profileImage = document.getString("profile_image") ?: ""
+                    }
+                    isLoading = false
+                }
+                .addOnFailureListener {
+                    isLoading = false
+                }
+        } else {
+            isLoading = false
+            navController.navigate("LoginScreen") {
+                popUpTo("ProfileScreen") { inclusive = true }
+            }
+        }
+    }
+
     ShoeStoreTheme {
         Scaffold(
             bottomBar = { BottomNavigationBar(navController = navController) }
@@ -44,88 +80,104 @@ fun ProfileScreen(navController: NavController) {
                     .background(Color.White),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // Avatar
-                Image(
-                    painter = painterResource(id = R.drawable.sa12_4), // Thay bằng tài nguyên avatar của bạn
-                    contentDescription = "Avatar",
-                    modifier = Modifier
-                        .size(100.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black)
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Tên và email
-                Text(
-                    text = "Đăng Văn Rin",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
-                )
-                Text(
-                    text = "vannrin775@gmail.com",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray,
-                    fontSize = 14.sp
-                )
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // Danh sách tùy chọn
-                ProfileOptionItem(
-                    icon = Icons.Default.History,
-                    text = "Lịch sử đặt hàng",
-                    onClick = { navController.navigate("OrderHistoryScreen") }
-                )
-                Divider(color = Color.LightGray, thickness = 0.5.dp)
-                ProfileOptionItem(
-                    icon = Icons.Default.Person,
-                    text = "Tài khoản của tôi",
-                    onClick = { navController.navigate("AccountScreen")}
-                )
-                Divider(color = Color.LightGray, thickness = 0.5.dp)
-                ProfileOptionItem(
-                    icon = Icons.Default.LocationOn,
-                    text = "Địa chỉ nhận hàng",
-                    onClick = { navController.navigate("AddressScreen") }
-                )
-                Divider(color = Color.LightGray, thickness = 0.5.dp)
-                ProfileOptionItem(
-                    icon = Icons.Default.Star,
-                    text = "Đánh giá của tôi",
-                    onClick = { navController.navigate("MyReviewsScreen") }
-                )
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // Nút Đăng xuất
-                OutlinedButton(
-                    onClick = { navController.navigate("LoginScreen") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color.Black
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.padding(16.dp),
+                        color = Color.Black
                     )
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Đăng xuất", fontSize = 16.sp)
-                        Icon(
-                            imageVector = Icons.Default.ArrowForward,
-                            contentDescription = "Logout",
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
+                } else {
+                    Spacer(modifier = Modifier.height(32.dp))
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    // Avatar
+                    Image(
+                        painter = if (profileImage.isNotEmpty()) {
+                            painterResource(id = R.drawable.sa12_4) // Thay bằng logic tải ảnh từ URL nếu có
+                        } else {
+                            painterResource(id = R.drawable.sa12_4)
+                        },
+                        contentDescription = "Avatar",
+                        modifier = Modifier
+                            .size(100.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black)
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Tên và email
+                    Text(
+                        text = "$firstName $lastName",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
+                    Text(
+                        text = email,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray,
+                        fontSize = 14.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    // Danh sách tùy chọn
+                    ProfileOptionItem(
+                        icon = Icons.Default.History,
+                        text = "Lịch sử đặt hàng",
+                        onClick = { navController.navigate("OrderHistoryScreen") }
+                    )
+                    Divider(color = Color.LightGray, thickness = 0.5.dp)
+                    ProfileOptionItem(
+                        icon = Icons.Default.Person,
+                        text = "Tài khoản của tôi",
+                        onClick = { navController.navigate("AccountScreen") }
+                    )
+                    Divider(color = Color.LightGray, thickness = 0.5.dp)
+                    ProfileOptionItem(
+                        icon = Icons.Default.LocationOn,
+                        text = "Địa chỉ nhận hàng",
+                        onClick = { navController.navigate("AddressScreen") }
+                    )
+                    Divider(color = Color.LightGray, thickness = 0.5.dp)
+                    ProfileOptionItem(
+                        icon = Icons.Default.Star,
+                        text = "Đánh giá của tôi",
+                        onClick = { navController.navigate("MyReviewsScreen") }
+                    )
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    // Nút Đăng xuất
+                    OutlinedButton(
+                        onClick = {
+                            FirebaseAuth.getInstance().signOut()
+                            navController.navigate("LoginScreen") {
+                                popUpTo("ProfileScreen") { inclusive = true }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color.Black
+                        )
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Đăng xuất", fontSize = 16.sp)
+                            Icon(
+                                imageVector = Icons.Default.ArrowForward,
+                                contentDescription = "Logout",
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
             }
         }
     }
@@ -154,7 +206,6 @@ fun ProfileOptionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, tex
         )
     }
 }
-
 
 @Composable
 fun BottomNavigationBar(navController: NavController) {
@@ -258,7 +309,7 @@ fun BottomNavigationBar(navController: NavController) {
                             shape = RoundedCornerShape(24.dp)
                         )
                 ) {
-                    androidx.compose.material.Icon(
+                    Icon(
                         Icons.Default.Person,
                         contentDescription = "Profile",
                         tint = if (selectedIndex.value == 3) Color.White else Color.Black,

@@ -1,5 +1,10 @@
 package com.example.shoestore.ui.account
 
+import android.content.Context
+import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -16,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -24,16 +30,85 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.shoestore.R
 import com.example.shoestore.ui.theme.ShoeStoreTheme
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountScreen(navController: NavController) {
     // States cho các trường thông tin
-    var fullName by remember { mutableStateOf("John Rin") }
-    var email by remember { mutableStateOf("john.rin@email.com") }
-    var phoneNumber by remember { mutableStateOf("0988554688") }
-    var password by remember { mutableStateOf("******") }
-    var confirmPassword by remember { mutableStateOf("******") }
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var phoneNumber by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var profileImage by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(true) }
+    var isSaving by remember { mutableStateOf(false) }
+
+    // Context và Firebase
+    val context = LocalContext.current
+    val currentUser = FirebaseAuth.getInstance().currentUser
+    val userId = currentUser?.uid
+
+    // Lấy dữ liệu ban đầu từ Firestore
+    LaunchedEffect(userId) {
+        if (userId != null) {
+            FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(userId)
+                .get()
+                .addOnSuccessListener { document ->
+                    if (document.exists()) {
+                        firstName = document.getString("first_name") ?: ""
+                        lastName = document.getString("last_name") ?: ""
+                        email = document.getString("email") ?: ""
+                        phoneNumber = document.getString("phone_number") ?: ""
+                        profileImage = document.getString("profile_image") ?: ""
+                        password = "******"
+                        confirmPassword = "******"
+                    }
+                    isLoading = false
+                }
+                .addOnFailureListener {
+                    isLoading = false
+                    Toast.makeText(context, "Lỗi tải dữ liệu: ${it.message}", Toast.LENGTH_LONG).show()
+                }
+        } else {
+            isLoading = false
+            navController.navigate("LoginScreen") {
+                popUpTo("AccountScreen") { inclusive = true }
+            }
+        }
+    }
+
+    // Launcher để chọn ảnh từ thiết bị
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    val pickImageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        selectedImageUri = uri
+        if (uri != null) {
+            // Tải ảnh lên Firebase Storage
+            uploadImageToFirebaseStorage(
+                context = context,
+                uri = uri,
+                userId = userId ?: "",
+                onSuccess = { imageUrl ->
+                    profileImage = imageUrl
+                    Toast.makeText(context, "Tải ảnh thành công", Toast.LENGTH_SHORT).show()
+                },
+                onFailure = { error ->
+                    Toast.makeText(context, "Tải ảnh thất bại: $error", Toast.LENGTH_LONG).show()
+                }
+            )
+        }
+    }
 
     // Scroll state để hỗ trợ trượt dọc
     val scrollState = rememberScrollState()
@@ -47,237 +122,383 @@ fun AccountScreen(navController: NavController) {
                     .background(Color(0xFF1C2526))
                     .padding(horizontal = 16.dp)
                     .verticalScroll(scrollState),
-                horizontalAlignment = Alignment.Start // Căn lề trái
+                horizontalAlignment = Alignment.Start
             ) {
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Tiêu đề "TÀI KHOẢN CỦA TÔI" với nút back
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    IconButton(
-                        onClick = { navController.popBackStack() },
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    Text(
-                        text = "Tài khoản của tôi",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        color = Color.White,
-                        modifier = Modifier.weight(1f),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .align(Alignment.CenterHorizontally),
+                        color = Color.White
                     )
-                    Spacer(modifier = Modifier.size(48.dp)) // Để cân đối với IconButton
-                }
+                } else {
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Ảnh đại diện
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.Center
-                ){
-                    Box(
-                        modifier = Modifier.size(100.dp)
+                    // Tiêu đề "TÀI KHOẢN CỦA TÔI" với nút back
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.sa12_5),
-                            contentDescription = "Profile Picture",
-                            modifier = Modifier
-                                .size(100.dp)
-                                .clip(CircleShape)
-                                .background(Color.Gray)
-                        )
                         IconButton(
-                            onClick = { /* Handle edit profile picture */ },
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF2196F3))
-                                .align(Alignment.BottomEnd)
+                            onClick = { navController.popBackStack() },
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Edit Picture",
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Back",
                                 tint = Color.White,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(24.dp)
                             )
                         }
+                        Text(
+                            text = "Tài khoản của tôi",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            color = Color.White,
+                            modifier = Modifier.weight(1f),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.size(48.dp))
                     }
-                }
 
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    // Ảnh đại diện
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Box(
+                            modifier = Modifier.size(100.dp)
+                        ) {
+                            Image(
+                                painter = if (selectedImageUri != null) {
+                                    painterResource(id = R.drawable.sa12_5)
+                                } else if (profileImage.isNotEmpty()) {
+                                    painterResource(id = R.drawable.sa12_5)
+                                } else {
+                                    painterResource(id = R.drawable.sa12_5)
+                                },
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier
+                                    .size(100.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Gray)
+                            )
+                            IconButton(
+                                onClick = {
+                                    pickImageLauncher.launch("image/*")
+                                },
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF2196F3))
+                                    .align(Alignment.BottomEnd)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit Picture",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
 
-                // Họ và tên
-                Text(
-                    text = "Họ và tên",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontSize = 14.sp,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = fullName,
-                    onValueChange = { fullName = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        focusedBorderColor = Color.Transparent,
-                        unfocusedBorderColor = Color.Transparent,
-                        containerColor = Color(0xFF2E3B3C),
-//                        textColor = Color.White,
-                        focusedTextColor = Color.White
-                    ),
-                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
-                    singleLine = true
-                )
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Email
-                Text(
-                    text = "Email",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontSize = 14.sp,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        focusedBorderColor = Color.Transparent,
-                        unfocusedBorderColor = Color.Transparent,
-                        containerColor = Color(0xFF2E3B3C),
-//                        textColor = Color.White,
-                        focusedTextColor = Color.White
-                    ),
-                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
-                    singleLine = true
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Số điện thoại
-                Text(
-                    text = "Số điện thoại",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontSize = 14.sp,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = phoneNumber,
-                    onValueChange = { phoneNumber = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        focusedBorderColor = Color.Transparent,
-                        unfocusedBorderColor = Color.Transparent,
-                        containerColor = Color(0xFF2E3B3C),
-//                        textColor = Color.White,
-                        focusedTextColor = Color.White
-                    ),
-                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
-                    singleLine = true
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Mật khẩu
-                Text(
-                    text = "Mật khẩu mới",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontSize = 14.sp,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    visualTransformation = PasswordVisualTransformation(),
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        focusedBorderColor = Color.Transparent,
-                        unfocusedBorderColor = Color.Transparent,
-                        containerColor = Color(0xFF2E3B3C),
-//                        textColor = Color.White,
-                        focusedTextColor = Color.White
-                    ),
-                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
-                    singleLine = true
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Xác nhận lại mật khẩu
-                Text(
-                    text = "Xác nhận lại mật khẩu",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontSize = 14.sp,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = confirmPassword,
-                    onValueChange = { confirmPassword = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    visualTransformation = PasswordVisualTransformation(),
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        focusedBorderColor = Color.Transparent,
-                        unfocusedBorderColor = Color.Transparent,
-                        containerColor = Color(0xFF2E3B3C),
-//                        textColor = Color.White,
-                        focusedTextColor = Color.White
-                    ),
-                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
-                    singleLine = true
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Nút Lưu thay đổi
-                Button(
-                    onClick = { /* Handle save changes */ },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF2196F3),
-                        contentColor = Color.White
+                    // Họ
+                    Text(
+                        text = "Họ",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontSize = 14.sp,
+                        color = Color.White
                     )
-                ) {
-                    Text("Lưu thay đổi", fontSize = 16.sp)
-                }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = lastName,
+                        onValueChange = { lastName = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            containerColor = Color(0xFF2E3B3C),
+                            focusedTextColor = Color.White
+                        ),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                        singleLine = true
+                    )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Tên
+                    Text(
+                        text = "Tên",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontSize = 14.sp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = firstName,
+                        onValueChange = { firstName = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            containerColor = Color(0xFF2E3B3C),
+                            focusedTextColor = Color.White
+                        ),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                        singleLine = true
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Email
+                    Text(
+                        text = "Email",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontSize = 14.sp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            containerColor = Color(0xFF2E3B3C),
+                            focusedTextColor = Color.White
+                        ),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                        singleLine = true
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Số điện thoại
+                    Text(
+                        text = "Số điện thoại",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontSize = 14.sp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = phoneNumber,
+                        onValueChange = { phoneNumber = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            containerColor = Color(0xFF2E3B3C),
+                            focusedTextColor = Color.White
+                        ),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                        singleLine = true
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Mật khẩu mới
+                    Text(
+                        text = "Mật khẩu mới (để trống nếu không muốn thay đổi)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontSize = 14.sp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        visualTransformation = PasswordVisualTransformation(),
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            containerColor = Color(0xFF2E3B3C),
+                            focusedTextColor = Color.White
+                        ),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                        singleLine = true,
+                        placeholder = { Text("******", color = Color.Gray) }
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Xác nhận lại mật khẩu
+                    Text(
+                        text = "Xác nhận lại mật khẩu",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontSize = 14.sp,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = { confirmPassword = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        visualTransformation = PasswordVisualTransformation(),
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            containerColor = Color(0xFF2E3B3C),
+                            focusedTextColor = Color.White
+                        ),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                        singleLine = true,
+                        placeholder = { Text("******", color = Color.Gray) }
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // Nút Lưu thay đổi
+                    Button(
+                        onClick = {
+                            if (firstName.isBlank() || lastName.isBlank() || email.isBlank() || phoneNumber.isBlank()) {
+                                Toast.makeText(context, "Vui lòng điền đầy đủ thông tin", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+
+                            val emailPattern = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.(com|net|org)$"
+                            if (!email.matches(Regex(emailPattern))) {
+                                Toast.makeText(context, "Email không hợp lệ", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+
+                            if (password != "******" || confirmPassword != "******") {
+                                if (password != confirmPassword) {
+                                    Toast.makeText(context, "Mật khẩu không khớp", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                                if (password.length < 6) {
+                                    Toast.makeText(context, "Mật khẩu phải có ít nhất 6 ký tự", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                            }
+
+                            isSaving = true
+
+                            // Cập nhật thông tin lên Firestore
+                            val userMap = hashMapOf(
+                                "first_name" to firstName,
+                                "last_name" to lastName,
+                                "email" to email,
+                                "phone_number" to phoneNumber,
+                                "profile_image" to profileImage,
+                                "updated_at" to Instant.now().atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+                                    .format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"))
+                            )
+
+                            FirebaseFirestore.getInstance()
+                                .collection("users")
+                                .document(userId ?: "")
+                                .update(userMap as Map<String, Any>)
+                                .addOnSuccessListener {
+                                    // Cập nhật email trong Firebase Auth
+                                    currentUser?.updateEmail(email)?.addOnSuccessListener {
+                                        // Cập nhật mật khẩu nếu có
+                                        if (password != "******") {
+                                            currentUser.updatePassword(password).addOnSuccessListener {
+                                                Toast.makeText(context, "Cập nhật thông tin và mật khẩu thành công", Toast.LENGTH_LONG).show()
+                                                isSaving = false
+                                                navController.popBackStack()
+                                            }.addOnFailureListener { e ->
+                                                isSaving = false
+                                                Toast.makeText(context, "Cập nhật mật khẩu thất bại: ${e.message}", Toast.LENGTH_LONG).show()
+                                            }
+                                        } else {
+                                            Toast.makeText(context, "Cập nhật thông tin thành công", Toast.LENGTH_LONG).show()
+                                            isSaving = false
+                                            navController.popBackStack()
+                                        }
+                                    }?.addOnFailureListener { e ->
+                                        isSaving = false
+                                        Toast.makeText(context, "Cập nhật email thất bại: ${e.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                                .addOnFailureListener { e ->
+                                    isSaving = false
+                                    Toast.makeText(context, "Cập nhật thông tin thất bại: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2196F3),
+                            contentColor = Color.White
+                        ),
+                        enabled = !isSaving
+                    ) {
+                        if (isSaving) {
+                            CircularProgressIndicator(
+                                color = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        } else {
+                            Text("Lưu thay đổi", fontSize = 16.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
             }
         }
     }
+}
+
+// Hàm tải ảnh lên Firebase Storage
+fun uploadImageToFirebaseStorage(
+    context: Context,
+    uri: Uri,
+    userId: String,
+    onSuccess: (String) -> Unit,
+    onFailure: (String) -> Unit
+) {
+    val storageRef = FirebaseStorage.getInstance().reference
+    val imageRef = storageRef.child("profile_images/$userId.jpg")
+
+    // Tải ảnh lên Firebase Storage
+    imageRef.putFile(uri)
+        .addOnSuccessListener { uploadTask ->
+            // Lấy URL tải xuống
+            imageRef.getDownloadUrl()
+                .addOnSuccessListener { downloadUri ->
+                    println("URL tải xuống: $downloadUri")
+                    onSuccess(downloadUri.toString())
+                }
+                .addOnFailureListener { e ->
+                    println("Lỗi lấy URL: ${e.message}")
+                    onFailure(e.message ?: "Lỗi lấy URL ảnh")
+                }
+        }
+        .addOnFailureListener { e ->
+            println("Lỗi tải ảnh lên: ${e.message}")
+            onFailure(e.message ?: "Lỗi tải ảnh lên")
+        }
 }
