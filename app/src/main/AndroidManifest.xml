@@ -12,39 +12,18 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.ShoeStore"
         tools:targetApi="31">
-<!--        <activity-->
-<!--            android:name=".ui.products.home.HomeScreen"-->
-<!--            android:exported="false" />-->
-        <!-- SplashScreen là màn hình khởi động -->
-        <activity
-            android:name=".ui.splash.SplashScreen"
-            android:exported="true"
-            android:theme="@style/Theme.ShoeStore.NoActionBar">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
 
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity> <!-- WelcomeScreen -->
-        <activity
-            android:name=".ui.welcome.WelcomeScreen"
-            android:exported="false"
-            android:theme="@style/Theme.ShoeStore.NoActionBar" /> <!-- LoginScreen -->
-        <activity
-            android:name=".ui.auth.login.LoginScreen"
-            android:exported="false"
-            android:theme="@style/Theme.ShoeStore.NoActionBar"
-            android:windowSoftInputMode="adjustResize" /> <!-- SignUpScreen -->
-        <activity
-            android:name=".ui.auth.signup.SignUpScreen"
-            android:exported="false"
-            android:theme="@style/Theme.ShoeStore.NoActionBar"
-            android:windowSoftInputMode="adjustResize" /> <!-- MainActivity -->
+        <!-- MainActivity là điểm khởi động và chứa NavHost -->
         <activity
             android:name=".MainActivity"
-            android:exported="false"
+            android:exported="true"
             android:label="@string/app_name"
-            android:theme="@style/Theme.ShoeStore" />
+            android:theme="@style/Theme.ShoeStore">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>

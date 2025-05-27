@@ -1,9 +1,8 @@
 package com.example.shoestore.ui.auth.signup
 
-import android.app.Activity
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -28,22 +27,14 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import com.example.shoestore.R
 import com.example.shoestore.ui.theme.ShoeStoreTheme
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-
-class SignUpScreen : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            ShoeStoreTheme {
-                SignUpScreenContent()
-            }
-        }
-    }
-}
 
 @Composable
 fun AnimatedBackgroundSignUp() {
@@ -98,12 +89,11 @@ fun AnimatedBackgroundSignUp() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SignUpScreenContent() {
+fun SignUpScreen(navController: NavController) {
     var firstName by remember { mutableStateOf("") }
     var lastName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var dateOfBirth by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
@@ -120,6 +110,7 @@ fun SignUpScreenContent() {
             }
         }
     )
+
     // Hiển thị DatePicker Dialog khi showDatePicker = true
     if (showDatePicker) {
         DatePickerDialog(
@@ -150,178 +141,268 @@ fun SignUpScreenContent() {
         }
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // Background Animation
-        AnimatedBackgroundSignUp()
-
-        // Main Content
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = Color.White.copy(alpha = 0.9f)
+    ShoeStoreTheme {
+        Box(
+            modifier = Modifier.fillMaxSize()
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 24.dp)
-                    .verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally,
+            // Background Animation
+            AnimatedBackgroundSignUp()
+
+            // Main Content
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = Color.White.copy(alpha = 0.9f)
             ) {
-                // Logo container
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(100.dp)
-                        .padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.shoe_logo),
-                        contentDescription = "Shoe Store Logo",
-                        modifier = Modifier
-                            .size(80.dp)
-                            .aspectRatio(1f)
-                    )
-                }
-
-                Text(
-                    text = "BECOME A SHOESTORE MEMBER",
-                    style = MaterialTheme.typography.headlineLarge,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-
-                Text(
-                    text = "Create your ShoeStore Member profile and get first access to the very best of ShoeStore products, inspiration and community.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-
-                // Form Fields
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp)
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    // First Name
-                    OutlinedTextField(
-                        value = firstName,
-                        onValueChange = { firstName = it },
-                        label = { Text("First Name", style = MaterialTheme.typography.bodyMedium) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
+                    // Logo container
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp)
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.shoe_logo),
+                            contentDescription = "Shoe Store Logo",
+                            modifier = Modifier
+                                .size(80.dp)
+                                .aspectRatio(1f)
+                        )
+                    }
 
-                    // Last Name
-                    OutlinedTextField(
-                        value = lastName,
-                        onValueChange = { lastName = it },
-                        label = { Text("Last Name", style = MaterialTheme.typography.bodyMedium) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-
-                    // Email
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = { email = it },
-                        label = { Text("Email address", style = MaterialTheme.typography.bodyMedium) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
-                    )
-
-                    // Password
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = { Text("Password", style = MaterialTheme.typography.bodyMedium) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        visualTransformation = if (passwordVisible) {
-                            VisualTransformation.None
-                        } else {
-                            PasswordVisualTransformation()
-                        },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        trailingIcon = {
-                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(
-                                    imageVector = if (passwordVisible) {
-                                        Icons.Filled.Visibility
-                                    } else {
-                                        Icons.Filled.VisibilityOff
-                                    },
-                                    contentDescription = if (passwordVisible) {
-                                        "Hide password"
-                                    } else {
-                                        "Show password"
-                                    }
-                                )
-                            }
-                        }
-                    )
-
-                    // Date of Birth
-                    OutlinedTextField(
-                        value = selectedDate,
-                        onValueChange = { /* Readonly */ },
-                        label = { Text("Date of Birth", style = MaterialTheme.typography.bodyMedium) },
-                        modifier = Modifier.fillMaxWidth(),
-                        readOnly = true,
-                        trailingIcon = {
-                            IconButton(onClick = { showDatePicker = true }) {
-                                Icon(
-                                    imageVector = Icons.Default.CalendarToday,
-                                    contentDescription = "Select date"
-                                )
-                            }
-                        }
+                    Text(
+                        text = "BECOME A SHOESTORE MEMBER",
+                        style = MaterialTheme.typography.headlineLarge,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(bottom = 12.dp)
                     )
 
                     Text(
-                        text = "By creating an account, you agree to ShoeStore's Privacy Policy and Terms of Use.",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = "Create your ShoeStore Member profile and get first access to the very best of ShoeStore products, inspiration and community.",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = Color.Gray,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(vertical = 8.dp)
+                        modifier = Modifier.padding(bottom = 16.dp)
                     )
 
-                    Button(
-                        onClick = { /* Handle sign up */ },
+                    // Form Fields
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Black
-                        )
+                            .padding(vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("JOIN US", style = MaterialTheme.typography.labelLarge)
-                    }
+                        // First Name
+                        OutlinedTextField(
+                            value = firstName,
+                            onValueChange = { firstName = it },
+                            label = { Text("First Name", style = MaterialTheme.typography.bodyMedium) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Already a Member? ",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
+                        // Last Name
+                        OutlinedTextField(
+                            value = lastName,
+                            onValueChange = { lastName = it },
+                            label = { Text("Last Name", style = MaterialTheme.typography.bodyMedium) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
                         )
-                        TextButton(
-                            onClick = { (context as? Activity)?.finish() },
-                            contentPadding = PaddingValues(0.dp)
+
+                        // Email
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            label = { Text("Email address", style = MaterialTheme.typography.bodyMedium) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                        )
+
+                        // Password
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = { Text("Password", style = MaterialTheme.typography.bodyMedium) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            visualTransformation = if (passwordVisible) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
+                            },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            trailingIcon = {
+                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                    Icon(
+                                        imageVector = if (passwordVisible) {
+                                            Icons.Filled.Visibility
+                                        } else {
+                                            Icons.Filled.VisibilityOff
+                                        },
+                                        contentDescription = if (passwordVisible) {
+                                            "Hide password"
+                                        } else {
+                                            "Show password"
+                                        }
+                                    )
+                                }
+                            }
+                        )
+
+                        // Date of Birth
+                        OutlinedTextField(
+                            value = selectedDate,
+                            onValueChange = { /* Readonly */ },
+                            label = { Text("Date of Birth", style = MaterialTheme.typography.bodyMedium) },
+                            modifier = Modifier.fillMaxWidth(),
+                            readOnly = true,
+                            trailingIcon = {
+                                IconButton(onClick = { showDatePicker = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.CalendarToday,
+                                        contentDescription = "Select date"
+                                    )
+                                }
+                            }
+                        )
+
+                        Text(
+                            text = "By creating an account, you agree to ShoeStore's Privacy Policy and Terms of Use.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+
+                        Button(
+                            onClick = {
+                                if (firstName.isBlank() || lastName.isBlank() || email.isBlank() ||
+                                    password.isBlank() || selectedDate.isBlank()
+                                ) {
+                                    Toast.makeText(context, "Vui lòng điền đầy đủ thông tin", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+
+                                val emailPattern = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.(com|net|org)$"
+                                if (!email.matches(Regex(emailPattern))) {
+                                    Toast.makeText(context, "Email không hợp lệ", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+
+                                FirebaseAuth.getInstance().createUserWithEmailAndPassword(email, password)
+                                    .addOnCompleteListener { task ->
+                                        if (task.isSuccessful) {
+                                            val user = task.result?.user
+                                            if (user != null) {
+                                                val userId = user.uid
+                                                val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
+                                                    .withZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+                                                val createdAt = Instant.now().atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+                                                    .format(formatter)
+
+                                                val userMap = hashMapOf(
+                                                    "date_birth" to selectedDate,
+                                                    "email" to email,
+                                                    "first_name" to firstName,
+                                                    "last_name" to lastName,
+                                                    "created_at" to createdAt, // Thêm thời gian tạo tài khoản
+                                                    "role" to "user", // Vai trò mặc định
+                                                    "profile_image" to "" // Ảnh đại diện mặc định (rỗng)
+                                                )
+
+                                                FirebaseFirestore.getInstance()
+                                                    .collection("users")
+                                                    .document(userId)
+                                                    .set(userMap)
+                                                    .addOnSuccessListener {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Đăng ký thành công! Chào mừng $firstName $lastName",
+                                                            Toast.LENGTH_LONG
+                                                        ).show()
+                                                        // Xóa dữ liệu form
+                                                        firstName = ""
+                                                        lastName = ""
+                                                        email = ""
+                                                        password = ""
+                                                        selectedDate = ""
+                                                        // Trì hoãn điều hướng
+                                                        Handler(Looper.getMainLooper()).postDelayed({
+                                                            navController.navigate("home") {
+                                                                popUpTo("SignUpScreen") { inclusive = true }
+                                                            }
+                                                        }, 1000)
+                                                    }
+                                                    .addOnFailureListener { e ->
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Lưu dữ liệu thất bại: ${e.message}",
+                                                            Toast.LENGTH_LONG
+                                                        ).show()
+                                                    }
+                                            } else {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Không tìm thấy thông tin người dùng sau khi đăng ký",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        } else {
+                                            if (task.exception?.message?.contains("email address is already in use") == true) {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Email đã được sử dụng, vui lòng dùng email khác",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                            } else {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Đăng ký thất bại: ${task.exception?.message}",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                            }
+                                        }
+                                    }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Black
+                            )
+                        ) {
+                            Text("JOIN US", style = MaterialTheme.typography.labelLarge)
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Sign In",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = Color.Black
+                                text = "Already a Member? ",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray
                             )
+                            TextButton(
+                                onClick = { navController.navigate("LoginScreen") },
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text(
+                                    text = "Sign In",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = Color.Black
+                                )
+                            }
                         }
                     }
                 }

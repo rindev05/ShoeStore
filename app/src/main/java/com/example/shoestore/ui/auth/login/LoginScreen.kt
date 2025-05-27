@@ -1,9 +1,7 @@
 package com.example.shoestore.ui.auth.login
 
 import android.content.Intent
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
+import android.widget.Toast
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -11,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -27,21 +26,12 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import com.example.shoestore.MainActivity
 import com.example.shoestore.R
 import com.example.shoestore.ui.auth.signup.SignUpScreen
 import com.example.shoestore.ui.theme.ShoeStoreTheme
-
-class LoginScreen : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            ShoeStoreTheme {
-                LoginScreenContent()
-            }
-        }
-    }
-}
+import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun AnimatedBackground() {
@@ -99,158 +89,174 @@ fun AnimatedBackground() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LoginScreenContent() {
+fun LoginScreen(navController: NavController) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val activity = context as? android.app.Activity
 
-    Box(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // Background Animation
-        AnimatedBackground()
-
-        // Main Content
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = Color.White.copy(alpha = 0.9f)
+    ShoeStoreTheme {
+        Box(
+            modifier = Modifier.fillMaxSize()
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 24.dp)
-                    .padding(top = 16.dp, bottom = 24.dp)
-                    .verticalScroll(rememberScrollState()), // Đảm bảo scroll dọc
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween // Sử dụng SpaceBetween để phân bổ nội dung
+            // Background Animation
+            AnimatedBackground()
+
+            // Main Content
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = Color.White.copy(alpha = 0.9f)
             ) {
-                // Phần đầu (logo và tiêu đề)
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Logo container
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(130.dp)
-                            .padding(vertical = 16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.shoe_logo),
-                            contentDescription = "Shoe Store Logo",
-                            modifier = Modifier
-                                .size(100.dp)
-                                .aspectRatio(1f)
-                        )
-                    }
-
-                    Text(
-                        text = "YOUR ACCOUNT FOR\nEVERYTHING SHOESTORE",
-                        style = MaterialTheme.typography.displayMedium,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(bottom = 36.dp)
-                    )
-                }
-
-                // Phần giữa và cuối (form và nút)
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp)
+                        .padding(top = 16.dp, bottom = 24.dp)
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = { email = it },
-                        label = { Text("Email address", style = MaterialTheme.typography.bodyMedium) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
-                    )
-
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = { Text("Password", style = MaterialTheme.typography.bodyMedium) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        visualTransformation = if (passwordVisible) {
-                            VisualTransformation.None
-                        } else {
-                            PasswordVisualTransformation()
-                        },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        trailingIcon = {
-                            IconButton(
-                                onClick = { passwordVisible = !passwordVisible }
-                            ) {
-                                Icon(
-                                    imageVector = if (passwordVisible) {
-                                        Icons.Filled.Visibility
-                                    } else {
-                                        Icons.Filled.VisibilityOff
-                                    },
-                                    contentDescription = if (passwordVisible) {
-                                        "Hide password"
-                                    } else {
-                                        "Show password"
-                                    }
-                                )
-                            }
+                    // Phần đầu (logo và tiêu đề)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Logo container
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(130.dp)
+                                .padding(vertical = 16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.shoe_logo),
+                                contentDescription = "Shoe Store Logo",
+                                modifier = Modifier
+                                    .size(100.dp)
+                                    .aspectRatio(1f)
+                            )
                         }
-                    )
 
-                    TextButton(
-                        onClick = { /* Handle forgot password */ },
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
                         Text(
-                            text = "Forgot password?",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
+                            text = "YOUR ACCOUNT FOR\nEVERYTHING SHOESTORE",
+                            style = MaterialTheme.typography.displayMedium,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(bottom = 36.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Button(
-                        onClick = {
-                            context.startActivity(Intent(context, MainActivity::class.java))
-                        },
+                    // Phần giữa và cuối (form và nút)
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Black
-                        )
+                            .fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text("SIGN IN", style = MaterialTheme.typography.labelLarge)
-                    }
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            label = { Text("Email address", style = MaterialTheme.typography.bodyMedium) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                        )
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 16.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Not a Member? ",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
-                        )
-                        TextButton(
-                            onClick = {
-                                context.startActivity(Intent(context, SignUpScreen::class.java))
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = { Text("Password", style = MaterialTheme.typography.bodyMedium) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            visualTransformation = if (passwordVisible) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
                             },
-                            contentPadding = PaddingValues(0.dp)
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = { passwordVisible = !passwordVisible }
+                                ) {
+                                    Icon(
+                                        imageVector = if (passwordVisible) {
+                                            Icons.Filled.Visibility
+                                        } else {
+                                            Icons.Filled.VisibilityOff
+                                        },
+                                        contentDescription = if (passwordVisible) {
+                                            "Hide password"
+                                        } else {
+                                            "Show password"
+                                        }
+                                    )
+                                }
+                            }
+                        )
+
+                        TextButton(
+                            onClick = { navController.navigate("ForgotPasswordScreen") },
+                            modifier = Modifier.align(Alignment.End)
                         ) {
                             Text(
-                                text = "Join Us",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = Color.Black
+                                text = "Forgot password?",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray
                             )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Button(
+                            onClick = {
+                                if (email.isBlank() || password.isBlank()) {
+                                    Toast.makeText(context, "Vui lòng điền đầy đủ", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+
+                                FirebaseAuth.getInstance().signInWithEmailAndPassword(email, password)
+                                    .addOnCompleteListener { task ->
+                                        if (task.isSuccessful) {
+                                            Toast.makeText(context, "Đăng nhập thành công!", Toast.LENGTH_LONG).show()
+                                            navController.navigate("home")
+                                        } else {
+                                            Toast.makeText(context, "Đăng nhập thất bại: ${task.exception?.message}", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Black
+                            )
+                        ) {
+                            Text("SIGN IN", style = MaterialTheme.typography.labelLarge)
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Not a Member? ",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray
+                            )
+                            TextButton(
+                                onClick = {
+                                    navController.navigate("SignUpScreen")
+                                },
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text(
+                                    text = "Join Us",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = Color.Black
+                                )
+                            }
                         }
                     }
                 }

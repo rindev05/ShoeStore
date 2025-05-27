@@ -10,6 +10,9 @@ import com.example.shoestore.ui.account.AccountScreen
 import com.example.shoestore.ui.address.AddressAddScreen
 import com.example.shoestore.ui.address.AddressDetailScreen
 import com.example.shoestore.ui.address.AddressScreen
+import com.example.shoestore.ui.auth.login.ForgotPasswordScreen
+import com.example.shoestore.ui.auth.login.LoginScreen
+import com.example.shoestore.ui.auth.signup.SignUpScreen
 import com.example.shoestore.ui.cart.CartScreen
 import com.example.shoestore.ui.checkout.CheckoutScreen
 import com.example.shoestore.ui.order.OrderSuccessScreen
@@ -23,12 +26,14 @@ import com.example.shoestore.ui.profile.ProfileScreen
 import com.example.shoestore.ui.reviews.MyReviewsScreen
 import com.example.shoestore.ui.reviews.ProductReviewScreen
 import com.example.shoestore.ui.reviews.ReviewsEditScreen
+import com.example.shoestore.ui.splash.SplashScreen
+import com.example.shoestore.ui.welcome.WelcomeScreen
 
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = "home") {
+    NavHost(navController = navController, startDestination = "SplashScreen") {
         composable("home") { HomeScreen(navController) }
         composable("productList") { ProductListScreen(navController) }
         composable("SearchScreen") { SearchScreen(navController) }
@@ -46,6 +51,13 @@ fun AppNavigation() {
         composable("ProductReviewScreen") {ProductReviewScreen(navController) }
         composable("ReviewsEditScreen") {ReviewsEditScreen(navController) }
         composable("OrderSuccessScreen") { OrderSuccessScreen(navController) }
+
+        composable("LoginScreen") { LoginScreen(navController) }
+        composable("SignUpScreen") { SignUpScreen(navController) }
+        composable("WelcomeScreen") { WelcomeScreen(navController) }
+        composable("SplashScreen") { SplashScreen(navController) }
+        composable("ForgotPasswordScreen") { ForgotPasswordScreen(navController) }
+
 //        composable(
 //            route = "order_detail/{orderId}",
 //            arguments = listOf(navArgument("orderId") { type = NavType.StringType })

@@ -1,5 +1,6 @@
 package com.example.shoestore.ui.profile
 
+import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -25,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.shoestore.R
+import com.example.shoestore.ui.auth.signup.SignUpScreen
 import com.example.shoestore.ui.theme.ShoeStoreTheme
 import kotlinx.coroutines.launch
 
@@ -101,7 +103,7 @@ fun ProfileScreen(navController: NavController) {
 
                 // Nút Đăng xuất
                 OutlinedButton(
-                    onClick = { /* Handle logout */ },
+                    onClick = { navController.navigate("LoginScreen") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
