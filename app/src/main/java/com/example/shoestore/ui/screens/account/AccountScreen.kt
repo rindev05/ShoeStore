@@ -80,8 +80,8 @@ fun AccountScreen(navController: NavController) {
                         email = document.getString("email") ?: ""
                         phoneNumber = document.getString("phone_number") ?: ""
                         profileImage = document.getString("profile_image") ?: ""
-                        password = ""
-                        confirmPassword = ""
+                        password = "******"
+                        confirmPassword = "******"
                     }
                     isLoading = false
                 }
