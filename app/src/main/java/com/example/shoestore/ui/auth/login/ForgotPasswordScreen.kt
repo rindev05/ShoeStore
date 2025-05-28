@@ -82,78 +82,52 @@ fun ForgotPasswordScreen(navController: NavController) {
 
                         isLoading = true
 
-                        // Kiểm tra email trong Firestore
-                        FirebaseFirestore.getInstance()
-                            .collection("users")
-                            .whereEqualTo("email", email)
-                            .get()
-                            .addOnSuccessListener { documents ->
-                                if (documents.isEmpty) {
-                                    // Email chưa được đăng ký
-                                    isLoading = false
+                        // Gửi email đặt lại mật khẩu trực tiếp qua Firebase Authentication
+                        FirebaseAuth.getInstance().sendPasswordResetEmail(email)
+                            .addOnCompleteListener { task ->
+                                // Định dạng thời gian hiện tại
+                                val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
+                                    .withZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+                                val timestamp = Instant.now().atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+                                    .format(formatter)
+
+                                // Chuẩn bị dữ liệu log
+                                val logData = hashMapOf(
+                                    "email" to email,
+                                    "timestamp" to timestamp,
+                                    "status" to if (task.isSuccessful) "success" else "failed"
+                                )
+
+                                // Lưu log vào Firestore
+                                FirebaseFirestore.getInstance()
+                                    .collection("password_reset_logs")
+                                    .add(logData)
+                                    .addOnSuccessListener {
+                                        println("Đã lưu log yêu cầu đặt lại mật khẩu: $logData")
+                                    }
+                                    .addOnFailureListener { e ->
+                                        println("Lưu log thất bại: ${e.message}")
+                                    }
+
+                                // Xử lý kết quả gửi email
+                                isLoading = false
+                                if (task.isSuccessful) {
                                     Toast.makeText(
                                         context,
-                                        "Email này chưa được đăng ký. Vui lòng đăng ký tài khoản trước.",
+                                        "Email đặt lại mật khẩu đã được gửi đến $email. Vui lòng kiểm tra hộp thư của bạn.",
                                         Toast.LENGTH_LONG
                                     ).show()
+                                    navController.navigate("LoginScreen") {
+                                        popUpTo("ForgotPasswordScreen") { inclusive = true }
+                                    }
                                 } else {
-                                    // Email đã được đăng ký, gửi yêu cầu đặt lại mật khẩu
-                                    FirebaseAuth.getInstance().sendPasswordResetEmail(email)
-                                        .addOnCompleteListener { task ->
-                                            // Định dạng thời gian hiện tại
-                                            val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
-                                                .withZone(ZoneId.of("Asia/Ho_Chi_Minh"))
-                                            val timestamp = Instant.now().atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
-                                                .format(formatter)
-
-                                            // Chuẩn bị dữ liệu log
-                                            val logData = hashMapOf(
-                                                "email" to email,
-                                                "timestamp" to timestamp,
-                                                "status" to if (task.isSuccessful) "success" else "failed"
-                                            )
-
-                                            // Lưu log vào Firestore
-                                            FirebaseFirestore.getInstance()
-                                                .collection("password_reset_logs")
-                                                .add(logData)
-                                                .addOnSuccessListener {
-                                                    println("Đã lưu log yêu cầu đặt lại mật khẩu: $logData")
-                                                }
-                                                .addOnFailureListener { e ->
-                                                    println("Lưu log thất bại: ${e.message}")
-                                                }
-
-                                            // Xử lý kết quả gửi email
-                                            isLoading = false
-                                            if (task.isSuccessful) {
-                                                Toast.makeText(
-                                                    context,
-                                                    "Email đặt lại mật khẩu đã được gửi đến $email. Vui lòng kiểm tra hộp thư của bạn.",
-                                                    Toast.LENGTH_LONG
-                                                ).show()
-                                                // Điều hướng về màn hình đăng nhập
-                                                navController.navigate("LoginScreen") {
-                                                    popUpTo("ForgotPasswordScreen") { inclusive = true }
-                                                }
-                                            } else {
-                                                val errorMessage = task.exception?.message ?: "Đã có lỗi xảy ra"
-                                                Toast.makeText(
-                                                    context,
-                                                    "Gửi email thất bại: $errorMessage",
-                                                    Toast.LENGTH_LONG
-                                                ).show()
-                                            }
-                                        }
+                                    val errorMessage = task.exception?.message ?: "Đã có lỗi xảy ra"
+                                    Toast.makeText(
+                                        context,
+                                        "Gửi email thất bại: $errorMessage",
+                                        Toast.LENGTH_LONG
+                                    ).show()
                                 }
-                            }
-                            .addOnFailureListener { e ->
-                                isLoading = false
-                                Toast.makeText(
-                                    context,
-                                    "Lỗi kiểm tra email: ${e.message}",
-                                    Toast.LENGTH_LONG
-                                ).show()
                             }
                     },
                     modifier = Modifier
