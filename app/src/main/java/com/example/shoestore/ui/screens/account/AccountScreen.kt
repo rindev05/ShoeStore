@@ -15,6 +15,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,17 +27,20 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import coil.compose.rememberAsyncImagePainter
 import com.example.shoestore.R
+import com.example.shoestore.data.service.CloudinaryService
 import com.example.shoestore.ui.theme.ShoeStoreTheme
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.storage.FirebaseStorage
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,10 +56,15 @@ fun AccountScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(true) }
     var isSaving by remember { mutableStateOf(false) }
 
+    // States cho hiển thị mật khẩu
+    var isPasswordVisible by remember { mutableStateOf(false) }
+    var isConfirmPasswordVisible by remember { mutableStateOf(false) }
+
     // Context và Firebase
     val context = LocalContext.current
     val currentUser = FirebaseAuth.getInstance().currentUser
     val userId = currentUser?.uid
+    val scope = rememberCoroutineScope()
 
     // Lấy dữ liệu ban đầu từ Firestore
     LaunchedEffect(userId) {
@@ -70,8 +80,8 @@ fun AccountScreen(navController: NavController) {
                         email = document.getString("email") ?: ""
                         phoneNumber = document.getString("phone_number") ?: ""
                         profileImage = document.getString("profile_image") ?: ""
-                        password = "******"
-                        confirmPassword = "******"
+                        password = ""
+                        confirmPassword = ""
                     }
                     isLoading = false
                 }
@@ -94,19 +104,16 @@ fun AccountScreen(navController: NavController) {
     ) { uri: Uri? ->
         selectedImageUri = uri
         if (uri != null) {
-            // Tải ảnh lên Firebase Storage
-            uploadImageToFirebaseStorage(
-                context = context,
-                uri = uri,
-                userId = userId ?: "",
-                onSuccess = { imageUrl ->
+            scope.launch {
+                try {
+                    val imageUrl = CloudinaryService.getInstance(context)
+                        .uploadImage(uri, "profile_images")
                     profileImage = imageUrl
                     Toast.makeText(context, "Tải ảnh thành công", Toast.LENGTH_SHORT).show()
-                },
-                onFailure = { error ->
-                    Toast.makeText(context, "Tải ảnh thất bại: $error", Toast.LENGTH_LONG).show()
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Tải ảnh thất bại: ${e.message}", Toast.LENGTH_LONG).show()
                 }
-            )
+            }
         }
     }
 
@@ -114,7 +121,146 @@ fun AccountScreen(navController: NavController) {
     val scrollState = rememberScrollState()
 
     ShoeStoreTheme {
-        Scaffold { paddingValues ->
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            // Nút Back bên trái
+                            IconButton(
+                                onClick = { navController.popBackStack() },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .padding(start = 8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            // Văn bản "Tài khoản của tôi" ở giữa
+                            Text(
+                                text = "Tài khoản của tôi",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 20.sp,
+                                color = Color.White,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(horizontal = 8.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            // Spacer để cân bằng
+                            Spacer(modifier = Modifier.size(48.dp))
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color(0xFF1C2526)
+                    )
+                )
+            },
+            bottomBar = {
+                BottomAppBar(
+                    containerColor = Color(0xFF1C2526),
+                    contentPadding = PaddingValues(horizontal = 16.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            if (firstName.isBlank() || lastName.isBlank() || email.isBlank() || phoneNumber.isBlank()) {
+                                Toast.makeText(context, "Vui lòng điền đầy đủ thông tin", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+
+                            val emailPattern = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.(com|net|org)$"
+                            if (!email.matches(Regex(emailPattern))) {
+                                Toast.makeText(context, "Email không hợp lệ", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+
+                            if (password != "******" || confirmPassword != "******") {
+                                if (password != confirmPassword) {
+                                    Toast.makeText(context, "Mật khẩu không khớp", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                                if (password.length < 6) {
+                                    Toast.makeText(context, "Mật khẩu phải có ít nhất 6 ký tự", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                            }
+
+                            isSaving = true
+
+                            // Cập nhật thông tin lên Firestore
+                            val userMap = hashMapOf(
+                                "first_name" to firstName,
+                                "last_name" to lastName,
+                                "email" to email,
+                                "phone_number" to phoneNumber,
+                                "profile_image" to profileImage,
+                                "updated_at" to Instant.now().atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
+                                    .format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"))
+                            )
+
+                            FirebaseFirestore.getInstance()
+                                .collection("users")
+                                .document(userId ?: "")
+                                .update(userMap as Map<String, Any>)
+                                .addOnSuccessListener {
+                                    // Cập nhật email trong Firebase Auth
+                                    currentUser?.updateEmail(email)?.addOnSuccessListener {
+                                        // Cập nhật mật khẩu nếu có
+                                        if (password != "******") {
+                                            currentUser.updatePassword(password).addOnSuccessListener {
+                                                Toast.makeText(context, "Cập nhật thông tin và mật khẩu thành công", Toast.LENGTH_LONG).show()
+                                                isSaving = false
+                                                navController.popBackStack()
+                                            }.addOnFailureListener { e ->
+                                                isSaving = false
+                                                Toast.makeText(context, "Cập nhật mật khẩu thất bại: ${e.message}", Toast.LENGTH_LONG).show()
+                                            }
+                                        } else {
+                                            Toast.makeText(context, "Cập nhật thông tin thành công", Toast.LENGTH_LONG).show()
+                                            isSaving = false
+                                            navController.popBackStack()
+                                        }
+                                    }?.addOnFailureListener { e ->
+                                        isSaving = false
+                                        Toast.makeText(context, "Cập nhật email thất bại: ${e.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                                .addOnFailureListener { e ->
+                                    isSaving = false
+                                    Toast.makeText(context, "Cập nhật thông tin thất bại: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2196F3),
+                            contentColor = Color.White
+                        ),
+                        enabled = !isSaving
+                    ) {
+                        if (isSaving) {
+                            CircularProgressIndicator(
+                                color = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        } else {
+                            Text("Lưu thay đổi", fontSize = 16.sp)
+                        }
+                    }
+                }
+            }
+        ) { paddingValues ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -134,37 +280,6 @@ fun AccountScreen(navController: NavController) {
                 } else {
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Tiêu đề "TÀI KHOẢN CỦA TÔI" với nút back
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        IconButton(
-                            onClick = { navController.popBackStack() },
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.ArrowBack,
-                                contentDescription = "Back",
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        Text(
-                            text = "Tài khoản của tôi",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp,
-                            color = Color.White,
-                            modifier = Modifier.weight(1f),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.size(48.dp))
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
                     // Ảnh đại diện
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -174,10 +289,18 @@ fun AccountScreen(navController: NavController) {
                             modifier = Modifier.size(100.dp)
                         ) {
                             Image(
-                                painter = if (selectedImageUri != null) {
-                                    painterResource(id = R.drawable.sa12_5)
+                                painter = if (selectedImageUri != null && profileImage.isNotEmpty()) {
+                                    rememberAsyncImagePainter(
+                                        model = profileImage,
+                                        placeholder = painterResource(id = R.drawable.sa12_5),
+                                        error = painterResource(id = R.drawable.sa12_5)
+                                    )
                                 } else if (profileImage.isNotEmpty()) {
-                                    painterResource(id = R.drawable.sa12_5)
+                                    rememberAsyncImagePainter(
+                                        model = profileImage,
+                                        placeholder = painterResource(id = R.drawable.sa12_5),
+                                        error = painterResource(id = R.drawable.sa12_5)
+                                    )
                                 } else {
                                     painterResource(id = R.drawable.sa12_5)
                                 },
@@ -332,7 +455,7 @@ fun AccountScreen(navController: NavController) {
                             .fillMaxWidth()
                             .height(50.dp),
                         shape = RoundedCornerShape(8.dp),
-                        visualTransformation = PasswordVisualTransformation(),
+                        visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         colors = TextFieldDefaults.outlinedTextFieldColors(
                             focusedBorderColor = Color.Transparent,
                             unfocusedBorderColor = Color.Transparent,
@@ -341,7 +464,16 @@ fun AccountScreen(navController: NavController) {
                         ),
                         textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
                         singleLine = true,
-                        placeholder = { Text("******", color = Color.Gray) }
+                        placeholder = { Text("Nhập mật khẩu mới", color = Color.Gray) },
+                        trailingIcon = {
+                            IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = if (isPasswordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu",
+                                    tint = Color.White
+                                )
+                            }
+                        }
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -361,7 +493,7 @@ fun AccountScreen(navController: NavController) {
                             .fillMaxWidth()
                             .height(50.dp),
                         shape = RoundedCornerShape(8.dp),
-                        visualTransformation = PasswordVisualTransformation(),
+                        visualTransformation = if (isConfirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         colors = TextFieldDefaults.outlinedTextFieldColors(
                             focusedBorderColor = Color.Transparent,
                             unfocusedBorderColor = Color.Transparent,
@@ -370,135 +502,21 @@ fun AccountScreen(navController: NavController) {
                         ),
                         textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
                         singleLine = true,
-                        placeholder = { Text("******", color = Color.Gray) }
-                    )
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    // Nút Lưu thay đổi
-                    Button(
-                        onClick = {
-                            if (firstName.isBlank() || lastName.isBlank() || email.isBlank() || phoneNumber.isBlank()) {
-                                Toast.makeText(context, "Vui lòng điền đầy đủ thông tin", Toast.LENGTH_SHORT).show()
-                                return@Button
+                        placeholder = { Text("Xác nhận lại mật khẩu", color = Color.Gray) },
+                        trailingIcon = {
+                            IconButton(onClick = { isConfirmPasswordVisible = !isConfirmPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (isConfirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = if (isConfirmPasswordVisible) "Ẩn mật khẩu" else "Hiện mật khẩu",
+                                    tint = Color.White
+                                )
                             }
-
-                            val emailPattern = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.(com|net|org)$"
-                            if (!email.matches(Regex(emailPattern))) {
-                                Toast.makeText(context, "Email không hợp lệ", Toast.LENGTH_SHORT).show()
-                                return@Button
-                            }
-
-                            if (password != "******" || confirmPassword != "******") {
-                                if (password != confirmPassword) {
-                                    Toast.makeText(context, "Mật khẩu không khớp", Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-                                if (password.length < 6) {
-                                    Toast.makeText(context, "Mật khẩu phải có ít nhất 6 ký tự", Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-                            }
-
-                            isSaving = true
-
-                            // Cập nhật thông tin lên Firestore
-                            val userMap = hashMapOf(
-                                "first_name" to firstName,
-                                "last_name" to lastName,
-                                "email" to email,
-                                "phone_number" to phoneNumber,
-                                "profile_image" to profileImage,
-                                "updated_at" to Instant.now().atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
-                                    .format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"))
-                            )
-
-                            FirebaseFirestore.getInstance()
-                                .collection("users")
-                                .document(userId ?: "")
-                                .update(userMap as Map<String, Any>)
-                                .addOnSuccessListener {
-                                    // Cập nhật email trong Firebase Auth
-                                    currentUser?.updateEmail(email)?.addOnSuccessListener {
-                                        // Cập nhật mật khẩu nếu có
-                                        if (password != "******") {
-                                            currentUser.updatePassword(password).addOnSuccessListener {
-                                                Toast.makeText(context, "Cập nhật thông tin và mật khẩu thành công", Toast.LENGTH_LONG).show()
-                                                isSaving = false
-                                                navController.popBackStack()
-                                            }.addOnFailureListener { e ->
-                                                isSaving = false
-                                                Toast.makeText(context, "Cập nhật mật khẩu thất bại: ${e.message}", Toast.LENGTH_LONG).show()
-                                            }
-                                        } else {
-                                            Toast.makeText(context, "Cập nhật thông tin thành công", Toast.LENGTH_LONG).show()
-                                            isSaving = false
-                                            navController.popBackStack()
-                                        }
-                                    }?.addOnFailureListener { e ->
-                                        isSaving = false
-                                        Toast.makeText(context, "Cập nhật email thất bại: ${e.message}", Toast.LENGTH_LONG).show()
-                                    }
-                                }
-                                .addOnFailureListener { e ->
-                                    isSaving = false
-                                    Toast.makeText(context, "Cập nhật thông tin thất bại: ${e.message}", Toast.LENGTH_LONG).show()
-                                }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF2196F3),
-                            contentColor = Color.White
-                        ),
-                        enabled = !isSaving
-                    ) {
-                        if (isSaving) {
-                            CircularProgressIndicator(
-                                color = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        } else {
-                            Text("Lưu thay đổi", fontSize = 16.sp)
                         }
-                    }
+                    )
 
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
         }
     }
-}
-
-// Hàm tải ảnh lên Firebase Storage
-fun uploadImageToFirebaseStorage(
-    context: Context,
-    uri: Uri,
-    userId: String,
-    onSuccess: (String) -> Unit,
-    onFailure: (String) -> Unit
-) {
-    val storageRef = FirebaseStorage.getInstance().reference
-    val imageRef = storageRef.child("profile_images/$userId.jpg")
-
-    // Tải ảnh lên Firebase Storage
-    imageRef.putFile(uri)
-        .addOnSuccessListener { uploadTask ->
-            // Lấy URL tải xuống
-            imageRef.getDownloadUrl()
-                .addOnSuccessListener { downloadUri ->
-                    println("URL tải xuống: $downloadUri")
-                    onSuccess(downloadUri.toString())
-                }
-                .addOnFailureListener { e ->
-                    println("Lỗi lấy URL: ${e.message}")
-                    onFailure(e.message ?: "Lỗi lấy URL ảnh")
-                }
-        }
-        .addOnFailureListener { e ->
-            println("Lỗi tải ảnh lên: ${e.message}")
-            onFailure(e.message ?: "Lỗi tải ảnh lên")
-        }
 }

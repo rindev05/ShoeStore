@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import coil.compose.rememberAsyncImagePainter
 import com.example.shoestore.R
 import com.example.shoestore.ui.theme.ShoeStoreTheme
 import com.google.firebase.auth.FirebaseAuth
@@ -91,7 +92,11 @@ fun ProfileScreen(navController: NavController) {
                     // Avatar
                     Image(
                         painter = if (profileImage.isNotEmpty()) {
-                            painterResource(id = R.drawable.sa12_4) // Thay bằng logic tải ảnh từ URL nếu có
+                            rememberAsyncImagePainter(
+                                model = profileImage,
+                                placeholder = painterResource(id = R.drawable.sa12_4),
+                                error = painterResource(id = R.drawable.sa12_4)
+                            )
                         } else {
                             painterResource(id = R.drawable.sa12_4)
                         },
@@ -106,7 +111,7 @@ fun ProfileScreen(navController: NavController) {
 
                     // Tên và email
                     Text(
-                        text = "$firstName $lastName",
+                        text = "$lastName $firstName",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp

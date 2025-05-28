@@ -58,6 +58,12 @@ dependencies {
     // firebase
     implementation ("com.google.firebase:firebase-storage:20.3.0")
 
+    // Cloudinary
+    implementation ("com.cloudinary:cloudinary-android:3.0.2")
+
+    // Coroutines để xử lý bất đồng bộ
+    implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
