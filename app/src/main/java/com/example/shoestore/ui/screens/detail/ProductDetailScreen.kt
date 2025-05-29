@@ -13,27 +13,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.ShoppingBag
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,72 +26,179 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.shoestore.R
-import com.example.shoestore.data.model.Product
-import com.example.shoestore.data.model.Review
+import com.example.shoestore.ui.screens.home.saveToRecentlyViewed
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.text.NumberFormat
 import java.util.Locale
+import kotlin.random.Random
+
+data class Product(
+    val id: Int,
+    val name: String,
+    val price: Double,
+    val brand: String,
+    val imageUrl: String,
+    val description: String,
+    val size: List<Int> = emptyList(),
+    val rating: Float = 0f,
+    val images: List<String> = emptyList(),
+    val reviews: List<Review> = emptyList()
+)
+
+data class Review(
+    val user: String,
+    val rating: Float,
+    val comment: String,
+    val date: String,
+    val imageAvatar: String
+)
+
+data class CartItem(
+    val product: Product, // Sử dụng Product từ package này
+    val size: Int,
+    val quantity: MutableState<Int> // Sử dụng MutableState để Compose theo dõi thay đổi
+)
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun ProductDetailScreen(navController: NavController, productId: Int) {
-    // Dữ liệu sản phẩm đồng bộ với ProductListScreen
-    val products = listOf(
-        Product(1, "Nike Dunk Low Retro", 2929000.0, 4.5f, R.drawable.sa12_1, "Chinh phục mọi hành trình với Nike Air Zoom Pegasus 37. Đệm Zoom Air cải tiến mang lại độ phản hồi tối ưu, trong khi lớp foam nhẹ giúp bạn tăng tốc mượt mà. Thoáng khí, ôm chân, hoàn hảo cho chạy bộ và phong cách hàng ngày.", reviews = listOf(
-            Review("Test User", 4f, "Loved it! Amazing product. Can’t go wrong with this one. 100% recommend.", "5/15/2022", R.drawable.s1),
-            Review("Test User", 3f, "Loved it! Amazing product. Can’t go wrong with this one. 100% recommend.", "5/15/2022", R.drawable.s2),
-            Review("Test User", 2f, "Loved it! Amazing product. Can’t go wrong with this one. 100% recommend.", "5/15/2022", R.drawable.s3),
-            Review("Test User", 5f, "Loved it! Amazing product. Can’t go wrong with this one. 100% recommend.", "5/15/2022", R.drawable.s4),
-            Review("Ahmed Khan", 5f, "Excellent quality for the price.", "7/20/2022", R.drawable.s1)
-        ),
-            images = listOf(R.drawable.sa12_1, R.drawable.sa12_2, R.drawable.sa12_3, R.drawable.sa12_4, R.drawable.sa12_5)
-            ),
-        Product(2, "Nike Pegasus Plus", 5279000.0, 4.0f, R.drawable.sa13_1, "Chinh phục mọi hành trình với Nike Air Zoom Pegasus 37. Đệm Zoom Air cải tiến mang lại độ phản hồi tối ưu, trong khi lớp foam nhẹ giúp bạn tăng tốc mượt mà. Thoáng khí, ôm chân, hoàn hảo cho chạy bộ và phong cách hàng ngày.", reviews = listOf(
-            Review("John Doe", 4f, "Very comfortable shoes!", "8/10/2022", R.drawable.s1),
-            Review("Test User", 5f, "Loved it! Amazing product. Can’t go wrong with this one. 100% recommend.", "5/15/2022", R.drawable.s2),
-            Review("Test User", 5f, "Loved it! Amazing product. Can’t go wrong with this one. 100% recommend.", "5/15/2022", R.drawable.s3),
-            Review("Sara Lee", 5f, "Worth every penny!", "9/01/2022", R.drawable.s4)
-        ),
-            images = listOf(R.drawable.sa13_1, R.drawable.sa13_2, R.drawable.sa13_3, R.drawable.sa13_4, R.drawable.sa13_5)
-            ),
-        Product(3, "Nike Pegasus 41", 2929000.0, 4.2f, R.drawable.sb13_1, "Chinh phục mọi hành trình với Nike Air Zoom Pegasus 37. Đệm Zoom Air cải tiến mang lại độ phản hồi tối ưu, trong khi lớp foam nhẹ giúp bạn tăng tốc mượt mà. Thoáng khí, ôm chân, hoàn hảo cho chạy bộ và phong cách hàng ngày.", reviews = listOf(
-            Review("Test User", 5f, "Loved it! Amazing product. Can’t go wrong with this one. 100% recommend.", "5/15/2022", R.drawable.s1),
-            Review("Test User", 5f, "Loved it! Amazing product. Can’t go wrong with this one. 100% recommend.", "5/15/2022", R.drawable.s2),
-            Review("Test User", 5f, "Loved it! Amazing product. Can’t go wrong with this one. 100% recommend.", "5/15/2022", R.drawable.s3),
-            Review("Alex Smith", 4.5f, "Great for running!", "6/20/2022", R.drawable.s4)
-        ),
-            images = listOf(R.drawable.sb13_1, R.drawable.sb13_2, R.drawable.sb13_3, R.drawable.sb13_4, R.drawable.sb13_5)
-            ),
-        Product(4, "Nike P-6000", 2929000.0, 4.3f, R.drawable.sn16_1, "Chinh phục mọi hành trình với Nike Air Zoom Pegasus 37. Đệm Zoom Air cải tiến mang lại độ phản hồi tối ưu, trong khi lớp foam nhẹ giúp bạn tăng tốc mượt mà. Thoáng khí, ôm chân, hoàn hảo cho chạy bộ và phong cách hàng ngày.", reviews = listOf(
-            Review("Emma Watson", 4f, "Stylish and comfy!", "7/25/2022", R.drawable.s1)
-        ),
-            images = listOf(R.drawable.sn16_1, R.drawable.sn16_2, R.drawable.sn16_3, R.drawable.sn16_4, R.drawable.sn16_5)
-            )
-    )
+    var product by remember { mutableStateOf<Product?>(null) }
+    var recommendedProducts by remember { mutableStateOf<List<Product>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
 
-    // Tìm sản phẩm theo productId
-    val product = products.find { it.id == productId } ?: products[0] // Mặc định lấy sản phẩm đầu tiên nếu không tìm thấy
+    // State để hiển thị thông báo
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
-    // Tính số sao trung bình từ danh sách đánh giá
-    val averageRating = if (product.reviews.isNotEmpty()) {
-        product.reviews.map { it.rating }.average().toFloat()
-    } else {
-        0f
+    // Tải dữ liệu từ Firestore, bao gồm sub-collection "reviews"
+    LaunchedEffect(Unit) {
+        val db = FirebaseFirestore.getInstance()
+        val collections = listOf("products-bitis", "products-nike", "products-adidas")
+
+        for (collection in collections) {
+            try {
+                val snapshot = db.collection(collection)
+                    .whereEqualTo("id", productId)
+                    .get()
+                    .await()
+
+                if (snapshot.documents.isNotEmpty()) {
+                    val doc = snapshot.documents.first()
+                    val data = doc.data
+                    val reviewsSnapshot = doc.reference.collection("reviews").get().await()
+                    val reviews = reviewsSnapshot.documents.mapNotNull { reviewDoc ->
+                        val reviewData = reviewDoc.data
+                        reviewData?.let {
+                            Review(
+                                user = it["user"] as? String ?: "",
+                                rating = (it["rating"] as? Number)?.toFloat() ?: 0f,
+                                comment = it["comment"] as? String ?: "",
+                                date = it["date"] as? String ?: "",
+                                imageAvatar = it["imageAvatar"] as? String ?: ""
+                            )
+                        }
+                    }
+
+                    product = data?.let {
+                        Product(
+                            id = (it["id"] as? Long)?.toInt() ?: 0,
+                            name = it["name"] as? String ?: "",
+                            price = (it["price"] as? Number)?.toDouble() ?: 0.0,
+                            brand = it["brand"] as? String ?: "",
+                            imageUrl = it["imageUrl"] as? String ?: "",
+                            description = it["description"] as? String ?: "",
+                            size = (it["size"] as? List<*>)?.filterIsInstance<Number>()
+                                ?.map { it.toInt() } ?: emptyList(),
+                            rating = (it["rating"] as? Number)?.toFloat() ?: 0f,
+                            images = (it["images"] as? List<*>)?.filterIsInstance<String>()
+                                ?: emptyList(),
+                            reviews = reviews
+                        )
+                    }
+
+                    // Lấy sản phẩm đề xuất cùng brand
+                    if (product != null) {
+                        val allProductsSnapshot = db.collection(collection).get().await()
+                        val allProducts = allProductsSnapshot.documents.mapNotNull { prodDoc ->
+                            val prodData = prodDoc.data
+                            prodData?.let {
+                                Product(
+                                    id = (it["id"] as? Long)?.toInt() ?: 0,
+                                    name = it["name"] as? String ?: "",
+                                    price = (it["price"] as? Number)?.toDouble() ?: 0.0,
+                                    brand = it["brand"] as? String ?: "",
+                                    imageUrl = it["imageUrl"] as? String ?: "",
+                                    description = it["description"] as? String ?: "",
+                                    size = (it["size"] as? List<*>)?.filterIsInstance<Number>()
+                                        ?.map { it.toInt() } ?: emptyList(),
+                                    rating = (it["rating"] as? Number)?.toFloat() ?: 0f,
+                                    images = (it["images"] as? List<*>)?.filterIsInstance<String>()
+                                        ?: emptyList(),
+                                    reviews = emptyList()
+                                )
+                            }
+                        }.filter { it.id != productId }
+
+                        val filteredProducts = allProducts.filter { it.brand == product!!.brand }
+                        recommendedProducts = if (filteredProducts.size >= 7) {
+                            filteredProducts.shuffled(Random(System.currentTimeMillis())).take(7)
+                        } else {
+                            filteredProducts.shuffled(Random(System.currentTimeMillis()))
+                        }
+                    }
+                    break
+                }
+            } catch (e: Exception) {
+                println("Error loading product from $collection: $e")
+            }
+        }
+        isLoading = false
     }
 
-    // Danh sách ảnh phụ (giả lập, bạn có thể thay bằng danh sách thực tế từ dữ liệu sản phẩm)
-    val productImages = product.images
+    if (isLoading) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
 
-    // Trạng thái để theo dõi ảnh phụ được chọn
+    if (product == null) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("Product not found", fontSize = 18.sp, color = Color.Red)
+        }
+        return
+    }
+
+    val averageRating = if (product!!.reviews.isNotEmpty()) {
+        product!!.reviews.map { it.rating }.average().toFloat()
+    } else {
+        product!!.rating
+    }
+
+    val productImages = if (product!!.images.isNotEmpty()) product!!.images else listOf(product!!.imageUrl)
     var selectedImage by remember { mutableStateOf(productImages[0]) }
-
 
     val numberFormat = remember {
         NumberFormat.getNumberInstance(Locale("vi", "VN")).apply {
@@ -119,36 +207,33 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
         }
     }
 
-    // Trạng thái cho kích cỡ được chọn và hiển thị popup
     var selectedSize by remember { mutableStateOf<Int?>(null) }
     var showSizePopup by remember { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
+    var showSizeGuidePopup by remember { mutableStateOf(false) }
 
-    // ModalBottomSheet
-    val sheetState = rememberModalBottomSheetState(initialValue = ModalBottomSheetValue.Hidden,
+    val sheetState = rememberModalBottomSheetState(
+        initialValue = ModalBottomSheetValue.Hidden,
         confirmValueChange = { it != ModalBottomSheetValue.HalfExpanded }
     )
 
-    // Trạng thái hiển thị popup hướng dẫn chọn size
-    var showSizeGuidePopup by remember { mutableStateOf(false) }
-
-    // Trạng thái hiển thị toàn bộ đánh giá
     var showAllReviews by remember { mutableStateOf(false) }
 
-    // Xử lý hiển thị/ẩn popup
     LaunchedEffect(showSizePopup) {
         if (showSizePopup) {
+            if (showSizeGuidePopup) {
+                showSizeGuidePopup = false
+            }
             coroutineScope.launch { sheetState.show() }
         } else {
             coroutineScope.launch { sheetState.hide() }
         }
     }
-    
 
     ModalBottomSheetLayout(
         sheetState = sheetState,
         sheetContent = {
             SizeSelectionPopup(
+                availableSizes = product!!.size,
                 onSizeSelected = { size ->
                     selectedSize = size
                     showSizePopup = false
@@ -164,7 +249,13 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text(product.name) },
+                    title = {
+                        Text(
+                            text = product!!.name,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
                     navigationIcon = {
                         IconButton(onClick = { navController.popBackStack() }) {
                             Icon(
@@ -175,59 +266,44 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
                             )
                         }
                     },
-                    actions = {
-//                        IconButton(onClick = { /* Xử lý tìm kiếm */ }) {
-//                            Icon(
-//                                imageVector = Icons.Default.Search,
-//                                contentDescription = "Search",
-//                                tint = Color.Black,
-//                                modifier = Modifier.padding(end = 8.dp)
-//                            )
-//                        }
-                    },
                     backgroundColor = Color.Transparent,
                     elevation = 0.dp
                 )
             },
-            bottomBar = { BottomNavigationBar(navController = navController) }
+            bottomBar = { BottomNavigationBar(navController = navController) },
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
         ) { paddingValues ->
             LazyColumn(modifier = Modifier.padding(paddingValues)) {
                 item {
                     Column(modifier = Modifier.padding(0.dp)) {
-
-                        // Hình ảnh chính chiếm 2/3 màn hình
                         val screenHeight = LocalConfiguration.current.screenHeightDp.dp
-                        val imageHeight = screenHeight * 2 / 3 // Chiếm 2/3 chiều cao màn hình
-
-                        // Chọn ảnh để hiển thị: nếu selectedImage không null thì dùng nó, nếu không thì dùng product.imageUrl
-                        val displayImage = selectedImage ?: product.imageUrl
+                        val imageHeight = screenHeight * 2 / 3
 
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(imageHeight)
-                                .background(Color(0xFFF6F6F6)) // Màu nền cho hình ảnh
+                                .background(Color(0xFFF6F6F6))
                         ) {
-                            Image(
-                                painter = painterResource(id = displayImage),
-                                contentDescription = product.name,
+                            AsyncImage(
+                                model = selectedImage,
+                                contentDescription = product!!.name,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(imageHeight)
-                                    .statusBarsPadding(), // Đảm bảo hình ảnh bắt đầu từ thanh trạng thái
-                                contentScale = ContentScale.Fit // Đảm bảo hình ảnh không bị cắt
+                                    .statusBarsPadding(),
+                                contentScale = ContentScale.Fit
                             )
                         }
 
-                        // Danh sách ảnh phụ
                         LazyRow(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(productImages) { imageRes ->
-                                val isSelected = imageRes == selectedImage
+                            items(productImages) { imageUrl ->
+                                val isSelected = imageUrl == selectedImage
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
@@ -237,11 +313,11 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
                                             .clip(RoundedCornerShape(8.dp))
                                             .background(Color(0xFFF6F6F6))
                                             .clickable {
-                                                selectedImage = imageRes
+                                                selectedImage = imageUrl
                                             }
                                     ) {
-                                        Image(
-                                            painter = painterResource(id = imageRes),
+                                        AsyncImage(
+                                            model = imageUrl,
                                             contentDescription = "Thumbnail",
                                             modifier = Modifier
                                                 .fillMaxSize()
@@ -264,10 +340,9 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Nội dung còn lại
                         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                             Text(
-                                text = product.name,
+                                text = product!!.name,
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -278,13 +353,13 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
                                     tint = Color.Yellow
                                 )
                                 Text(
-                                    text = "${String.format("%.1f", averageRating)} (${product.reviews.size} Đánh giá)",
+                                    text = "${String.format("%.1f", averageRating)} (${product!!.reviews.size} Đánh giá)",
                                     fontSize = 14.sp
                                 )
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "${numberFormat.format(product.price)} đ",
+                                text = "${numberFormat.format(product!!.price)} đ",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(top = 8.dp)
@@ -305,7 +380,7 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
                                     .height(50.dp)
                                     .border(1.dp, Color.Gray, RoundedCornerShape(20.dp)),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.White,
+                                    backgroundColor = Color.White,
                                     contentColor = Color.Black
                                 )
                             ) {
@@ -328,13 +403,22 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
                             }
                             Spacer(modifier = Modifier.height(16.dp))
                             Button(
-                                onClick = { /* Add to cart logic */ },
+                                onClick = {
+                                    if (selectedSize == null) {
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar("Vui lòng chọn kích cỡ trước!")
+                                        }
+                                    } else {
+                                        navController.navigate("CheckoutScreen/${product!!.id}/${selectedSize}")
+                                        println("Navigating to Checkout with productId=${product!!.id}, size=$selectedSize") // Thêm log để debug
+                                    }
+                                },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(50.dp),
                                 shape = RoundedCornerShape(20.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.Black,
+                                    backgroundColor = Color.Black,
                                     contentColor = Color.White
                                 )
                             ) {
@@ -342,13 +426,55 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
                             }
                             Spacer(modifier = Modifier.height(16.dp))
                             Button(
-                                onClick = { /* Add to cart logic */ },
+                                onClick = {
+                                    // Thêm vào giỏ hàng
+                                    if (selectedSize == null) {
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar("Vui lòng chọn kích cỡ trước!")
+                                        }
+                                    } else {
+                                        val user = FirebaseAuth.getInstance().currentUser
+                                        if (user == null) {
+                                            coroutineScope.launch {
+                                                snackbarHostState.showSnackbar("Vui lòng đăng nhập để thêm vào giỏ hàng!")
+                                            }
+                                        } else {
+                                            val db = FirebaseFirestore.getInstance()
+                                            val cartDocId = "${product!!.id}_${selectedSize}" // Sử dụng id_size làm ID tài liệu
+                                            val cartRef = db.collection("users")
+                                                .document(user.uid)
+                                                .collection("cart")
+                                                .document(cartDocId)
+
+                                            val cartItem = hashMapOf(
+                                                "productId" to product!!.id,
+                                                "name" to product!!.name,
+                                                "price" to product!!.price,
+                                                "size" to selectedSize,
+                                                "quantity" to 1,
+                                                "imageUrl" to product!!.imageUrl // Thêm imageUrl
+                                            )
+
+                                            cartRef.set(cartItem)
+                                                .addOnSuccessListener {
+                                                    coroutineScope.launch {
+                                                        snackbarHostState.showSnackbar("Đã thêm sản phẩm vào giỏ hàng!")
+                                                    }
+                                                }
+                                                .addOnFailureListener { e ->
+                                                    coroutineScope.launch {
+                                                        snackbarHostState.showSnackbar("Lỗi khi thêm vào giỏ hàng: ${e.message}")
+                                                    }
+                                                }
+                                        }
+                                    }
+                                },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(50.dp)
                                     .border(1.dp, Color.Gray, RoundedCornerShape(20.dp)),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.White,
+                                    backgroundColor = Color.White,
                                     contentColor = Color.Black
                                 )
                             ) {
@@ -356,7 +482,7 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Text("Thêm vào giỏ ", color = Color.Black)
+                                    Text("Thêm vào giỏ", color = Color.Black)
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Icon(
                                         imageVector = Icons.Default.ShoppingBag,
@@ -368,18 +494,18 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
                             }
                             Spacer(modifier = Modifier.height(40.dp))
                             Text(
-                                text = "MÔ TẢ SẢN PHẨM ",
+                                text = "MÔ TẢ SẢN PHẨM",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = product.name,
+                                text = product!!.name,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Light
                             )
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text(text = product.description, fontSize = 14.sp)
+                            Text(text = product!!.description, fontSize = 14.sp)
                             Spacer(modifier = Modifier.height(40.dp))
 
                             Row(
@@ -388,11 +514,11 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = "ĐÁNH GIÁ SẢN PHẨM ",
+                                    text = "ĐÁNH GIÁ SẢN PHẨM",
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold
                                 )
-                                if (product.reviews.isNotEmpty()) {
+                                if (product!!.reviews.isNotEmpty()) {
                                     IconButton(onClick = { showAllReviews = !showAllReviews }) {
                                         Icon(
                                             imageVector = if (showAllReviews) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
@@ -402,7 +528,7 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
                                     }
                                 }
                             }
-                            if (product.reviews.isEmpty()) {
+                            if (product!!.reviews.isEmpty()) {
                                 Text(
                                     text = "Chưa có đánh giá",
                                     fontSize = 14.sp,
@@ -410,7 +536,10 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
                                     modifier = Modifier.padding(vertical = 8.dp)
                                 )
                             } else {
-                                val reviewsToShow = if (showAllReviews) product.reviews else product.reviews.take(1)
+                                val reviewsToShow =
+                                    if (showAllReviews) product!!.reviews else product!!.reviews.take(
+                                        1
+                                    )
                                 reviewsToShow.forEach { review ->
                                     ReviewItem(review = review)
                                 }
@@ -418,19 +547,26 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
 
                             Spacer(modifier = Modifier.height(40.dp))
                             Text(
-                                text = "BẠN CÓ THỂ THÍCH ",
+                                text = "BẠN CÓ THỂ THÍCH",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold
                             )
-                            Column(modifier = Modifier.padding(0.dp)) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    items(products.size) { index ->
-                                        ProductItem(
-                                            product = products[index],
-                                            onClick = { navController.navigate("product/${products[index].id}") }
-                                        )
-                                    }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LazyRow(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(recommendedProducts) { recProduct ->
+                                    ProductItem(
+                                        product = recProduct,
+                                        onClick = {
+                                            navController.navigate("product/${recProduct.id}")
+                                            saveToRecentlyViewed(recProduct.id)
+                                        },
+                                        modifier = Modifier.width(160.dp)
+                                    )
                                 }
                             }
                             Spacer(modifier = Modifier.height(40.dp))
@@ -440,7 +576,7 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
             }
         }
     }
-    // Popup hướng dẫn chọn size
+
     if (showSizeGuidePopup) {
         Dialog(
             onDismissRequest = { showSizeGuidePopup = false },
@@ -451,10 +587,8 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
                     .fillMaxSize()
                     .background(Color.White)
             ) {
-                // Trạng thái để kích hoạt reset zoom
                 var resetZoomKey by remember { mutableStateOf(0) }
 
-                // Nút quay lại và nút reset zoom
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -470,13 +604,12 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
                         )
                     }
                     TextButton(onClick = {
-                        resetZoomKey++ // Tăng key để kích hoạt reset zoom
+                        resetZoomKey++
                     }) {
                         Text("Reset Zoom", color = Color.Black)
                     }
                 }
 
-                // Hình ảnh hướng dẫn chọn size với tính năng zoom
                 ZoomableImage(resetZoomKey = resetZoomKey)
             }
         }
@@ -484,21 +617,79 @@ fun ProductDetailScreen(navController: NavController, productId: Int) {
 }
 
 @Composable
+fun ProductItem(
+    product: Product,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    println("Rendering Product: ${product.name}")
+    val numberFormat = remember {
+        NumberFormat.getNumberInstance(Locale("vi", "VN")).apply {
+            minimumFractionDigits = 0
+            maximumFractionDigits = 0
+        }
+    }
+    Card(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+        elevation = 4.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box {
+                AsyncImage(
+                    model = product.imageUrl,
+                    contentDescription = product.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(150.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFFF6F6F6))
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Bestseller",
+                color = Color.Red,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = product.name,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            Text(
+                text = product.brand,
+                fontSize = 12.sp,
+                color = Color.Gray
+            )
+            Text(
+                text = "${numberFormat.format(product.price)} đ",
+                fontSize = 12.sp,
+                color = Color.Black,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
 fun ZoomableImage(resetZoomKey: Int) {
-    // Trạng thái để theo dõi mức zoom (scale) và vị trí di chuyển (offset)
     var scale by remember { mutableStateOf(1f) }
     var offsetX by remember { mutableStateOf(0f) }
     var offsetY by remember { mutableStateOf(0f) }
 
-    // Lấy kích thước màn hình
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
 
-    // Giả sử kích thước ảnh gốc (có thể thay đổi dựa trên ảnh thực tế)
     val imageWidth = screenWidth.value
     val imageHeight = screenHeight.value * 0.8f
 
-    // Reset zoom khi key thay đổi
     LaunchedEffect(resetZoomKey) {
         scale = 1f
         offsetX = 0f
@@ -507,18 +698,14 @@ fun ZoomableImage(resetZoomKey: Int) {
 
     Box(
         modifier = Modifier
-            .fillMaxSize() // Thay vì dùng weight, sử dụng fillMaxSize để tránh lỗi ColumnScope
+            .fillMaxSize()
             .clipToBounds()
             .pointerInput(Unit) {
                 detectTransformGestures { _, pan, zoom, _ ->
-                    // Cập nhật mức zoom, giới hạn từ 1x đến 4x
                     scale = (scale * zoom).coerceIn(1f, 4f)
-
-                    // Tính toán kích thước ảnh sau khi zoom
                     val scaledWidth = imageWidth * scale
                     val scaledHeight = imageHeight * scale
 
-                    // Tính giới hạn di chuyển
                     val maxOffsetX = if (scaledWidth > screenWidth.value) {
                         (scaledWidth - screenWidth.value) / 2
                     } else {
@@ -530,11 +717,9 @@ fun ZoomableImage(resetZoomKey: Int) {
                         0f
                     }
 
-                    // Cập nhật vị trí di chuyển
                     offsetX += pan.x
                     offsetY += pan.y
 
-                    // Giới hạn di chuyển để ảnh không ra ngoài vùng hiển thị
                     offsetX = offsetX.coerceIn(-maxOffsetX, maxOffsetX)
                     offsetY = offsetY.coerceIn(-maxOffsetY, maxOffsetY)
                 }
@@ -557,16 +742,16 @@ fun ZoomableImage(resetZoomKey: Int) {
 
 @Composable
 fun SizeSelectionPopup(
+    availableSizes: List<Int>,
     onSizeSelected: (Int) -> Unit,
     onCancel: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(400.dp) // Chiếm khoảng 2/3 màn hình
+            .height(400.dp)
             .padding(16.dp)
     ) {
-        // Nút Cancel
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End
@@ -582,9 +767,8 @@ fun SizeSelectionPopup(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 16.dp)
         )
-        // Danh sách kích cỡ
         LazyColumn {
-            items((38..47).toList()) { size ->
+            items(availableSizes) { size ->
                 SizeItem(
                     size = size,
                     onClick = { onSizeSelected(size) }
@@ -630,9 +814,8 @@ fun ReviewItem(review: Review) {
             modifier = Modifier.padding(8.dp),
             verticalAlignment = Alignment.Top
         ) {
-            // Avatar bên trái
-            Image(
-                painter = painterResource(id = review.imageAvatar),
+            AsyncImage(
+                model = review.imageAvatar,
                 contentDescription = "User Avatar",
                 modifier = Modifier
                     .size(40.dp)
@@ -640,7 +823,6 @@ fun ReviewItem(review: Review) {
                 contentScale = ContentScale.Crop
             )
             Spacer(modifier = Modifier.width(12.dp))
-            // Nội dung đánh giá bên phải
             Column {
                 Text(
                     text = review.user,
@@ -680,59 +862,6 @@ fun ReviewItem(review: Review) {
 }
 
 @Composable
-fun ProductItem(product: Product, onClick: () -> Unit) {
-    val numberFormat = remember {
-        NumberFormat.getNumberInstance(Locale("vi", "VN")).apply {
-            minimumFractionDigits = 0
-            maximumFractionDigits = 0
-        }
-    }
-    Card(
-        modifier = Modifier
-            .padding(0.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick),
-        elevation = 4.dp
-    ) {
-        Column(
-            modifier = Modifier.padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box {
-                Image(
-                    painter = painterResource(id = product.imageUrl),
-                    contentDescription = product.name,
-                    modifier = Modifier
-                        .size(150.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFF6F6F6))
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            androidx.compose.material.Text(
-                text = "Bestseller",
-                color = Color.Red,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = product.name,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1
-            )
-            Text(
-                text = "${numberFormat.format(product.price)} đ",
-                fontSize = 12.sp,
-                color = Color.Black,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
-
-@Composable
 fun BottomNavigationBar(navController: NavController) {
     val selectedIndex = remember { mutableStateOf(1) }
     val scope = rememberCoroutineScope()
@@ -756,7 +885,7 @@ fun BottomNavigationBar(navController: NavController) {
                             shape = RoundedCornerShape(24.dp)
                         )
                 ) {
-                    androidx.compose.material.Icon(
+                    Icon(
                         Icons.Default.Home,
                         contentDescription = "Home",
                         tint = if (selectedIndex.value == 0) Color.White else Color.Black,
@@ -782,7 +911,7 @@ fun BottomNavigationBar(navController: NavController) {
                             shape = RoundedCornerShape(24.dp)
                         )
                 ) {
-                    androidx.compose.material.Icon(
+                    Icon(
                         Icons.Default.Search,
                         contentDescription = "Search",
                         tint = if (selectedIndex.value == 1) Color.White else Color.Black,
@@ -808,7 +937,7 @@ fun BottomNavigationBar(navController: NavController) {
                             shape = RoundedCornerShape(24.dp)
                         )
                 ) {
-                    androidx.compose.material.Icon(
+                    Icon(
                         Icons.Default.ShoppingBag,
                         contentDescription = "Cart",
                         tint = if (selectedIndex.value == 2) Color.White else Color.Black,
@@ -834,7 +963,7 @@ fun BottomNavigationBar(navController: NavController) {
                             shape = RoundedCornerShape(24.dp)
                         )
                 ) {
-                    androidx.compose.material.Icon(
+                    Icon(
                         Icons.Default.Person,
                         contentDescription = "Profile",
                         tint = if (selectedIndex.value == 3) Color.White else Color.Black,

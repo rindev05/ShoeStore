@@ -29,11 +29,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.shoestore.R
-import com.example.shoestore.data.model.Product
 import com.google.accompanist.pager.*
+import com.google.firebase.firestore.FirebaseFirestore
+import coil.compose.AsyncImage
+import com.example.shoestore.ui.screens.home.saveToRecentlyViewed
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.text.NumberFormat
 import java.util.Locale
+
+data class Product(
+    val id: Int,
+    val name: String,
+    val price: Double,
+    val brand: String,
+    val imageUrl: String
+)
 
 @Composable
 fun AppBar(onSearchClick: () -> Unit) {
@@ -66,10 +77,20 @@ fun AppBar(onSearchClick: () -> Unit) {
 }
 
 @Composable
-fun SearchPopup(onDismiss: () -> Unit) {
+fun SearchPopup(
+    allProducts: List<Product>,
+    navController: NavController,
+    onDismiss: () -> Unit
+) {
     var searchQuery by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
+
+    // Lọc sản phẩm dựa trên searchQuery
+    val filteredProducts = allProducts.filter { product ->
+        product.name.lowercase().contains(searchQuery.lowercase()) ||
+                product.brand.lowercase().contains(searchQuery.lowercase())
+    }
 
     Box(
         modifier = Modifier
@@ -127,11 +148,53 @@ fun SearchPopup(onDismiss: () -> Unit) {
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Search Suggestions or Results",
-                style = MaterialTheme.typography.body1,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
+
+            // Hiển thị kết quả tìm kiếm
+            if (searchQuery.isEmpty()) {
+                Text(
+                    text = "Search Suggestions or Results",
+                    style = MaterialTheme.typography.body1,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+            } else if (filteredProducts.isEmpty()) {
+                Text(
+                    text = "No results found for \"$searchQuery\"",
+                    style = MaterialTheme.typography.body1,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+            } else {
+                LazyColumn {
+                    items(filteredProducts.chunked(2)) { rowItems ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            rowItems.forEach { product ->
+                                ProductItem(
+                                    product = product,
+                                    onClick = {
+                                        navController.navigate("product/${product.id}")
+                                        saveToRecentlyViewed(product.id)
+                                        onDismiss() // Đóng popup sau khi chọn sản phẩm
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(horizontal = 4.dp)
+                                )
+                            }
+                            if (rowItems.size < 2) {
+                                Spacer(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(horizontal = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -142,14 +205,62 @@ fun SearchPopup(onDismiss: () -> Unit) {
 
 @Composable
 fun SearchScreen(navController: NavController) {
-    val products = listOf(
-        Product(1, "Nike Dunk Low Retro", 2929000.0, 4.5f, R.drawable.sa12_1, "Men's Shoes"),
-        Product(2, "Nike Pegasus Plus", 5279000.0, 4.0f, R.drawable.sa13_1, "Men's Road Running Shoes"),
-        Product(3, "Nike Pegasus 41", 2929000.0, 4.2f, R.drawable.sb13_1, "Men's Road Running Shoes"),
-        Product(4, "Nike P-6000", 2929000.0, 4.3f, R.drawable.sn16_1, "Shoes")
-    )
-
+    val productsBitis = remember { mutableStateListOf<Product>() }
+    val productsNike = remember { mutableStateListOf<Product>() }
+    val productsAdidas = remember { mutableStateListOf<Product>() }
+    val allProducts = remember { mutableStateListOf<Product>() }
+    val scope = rememberCoroutineScope()
     var showSearchPopup by remember { mutableStateOf(false) }
+    var selectedTabIndex by remember { mutableStateOf(0) }
+
+    // Load dữ liệu từ 3 collection
+    LaunchedEffect(Unit) {
+        val db = FirebaseFirestore.getInstance()
+        val collections = mapOf(
+            "products-bitis" to productsBitis,
+            "products-nike" to productsNike,
+            "products-adidas" to productsAdidas
+        )
+
+        collections.forEach { (collectionName, productList) ->
+            try {
+                val result = db.collection(collectionName).get().await()
+                val productListData = result.documents.mapNotNull { document ->
+                    val data = document.data
+                    println("Document data from $collectionName: $data")
+                    data?.let {
+                        Product(
+                            id = (it["id"] as? Long)?.toInt() ?: 0,
+                            name = it["name"] as? String ?: "",
+                            price = (it["price"] as? Number)?.toDouble() ?: 0.0,
+                            brand = it["brand"] as? String ?: "",
+                            imageUrl = it["imageUrl"] as? String ?: ""
+                        )
+                    }
+                }
+                productList.clear()
+                productList.addAll(productListData)
+            } catch (e: Exception) {
+                println("Error getting products from $collectionName: $e")
+            }
+        }
+
+        // Cập nhật allProducts bằng cách gộp và xáo trộn
+        allProducts.clear()
+        allProducts.addAll(productsBitis)
+        allProducts.addAll(productsNike)
+        allProducts.addAll(productsAdidas)
+        allProducts.shuffle()
+    }
+
+    // Xác định danh sách hiển thị dựa trên tab được chọn
+    val displayedProducts = when (selectedTabIndex) {
+        0 -> allProducts // All
+        1 -> productsAdidas // Adidas
+        2 -> productsNike // Nike
+        3 -> productsBitis // Biti's
+        else -> allProducts
+    }
 
     Scaffold(
         topBar = {
@@ -170,11 +281,7 @@ fun SearchScreen(navController: NavController) {
 
             // Thanh lọc (Filter Tabs) với ScrollableTabRow
             item {
-                val tabList = listOf(
-                    "All", "Adidas", "Nike", "Biti's", "Converse", "New Balance", "Puma"
-                )
-                var selectedTabIndex by remember { mutableStateOf(0) }
-
+                val tabList = listOf("All", "Adidas", "Nike", "Biti's")
                 ScrollableTabRow(
                     selectedTabIndex = selectedTabIndex,
                     backgroundColor = Color.White,
@@ -204,30 +311,44 @@ fun SearchScreen(navController: NavController) {
                 }
             }
 
-            // Danh sách sản phẩm
-            items(products.chunked(2)) { rowItems ->
+            // Danh sách sản phẩm: mỗi hàng 2 sản phẩm
+            items(displayedProducts.chunked(2)) { rowItems ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     rowItems.forEach { product ->
                         ProductItem(
                             product = product,
-                            onClick = { navController.navigate("product/${product.id}") }
+                            onClick = {
+                                navController.navigate("product/${product.id}")
+                                // Lưu vào recently viewed khi click vào sản phẩm
+                                saveToRecentlyViewed(product.id)
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 4.dp)
                         )
                     }
                     if (rowItems.size < 2) {
-                        Spacer(modifier = Modifier.weight(1f))
+                        Spacer(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 4.dp)
+                        )
                     }
                 }
             }
         }
 
-        // Hiển thị popup tìm kiếm khi showSearchPopup = true
         if (showSearchPopup) {
-            SearchPopup(onDismiss = { showSearchPopup = false })
+            SearchPopup(
+                allProducts = allProducts,
+                navController = navController,
+                onDismiss = { showSearchPopup = false }
+            )
         }
     }
 }
@@ -249,7 +370,7 @@ fun BannerSection() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 5.dp) // Thêm padding ngang để banner trông đẹp hơn
+            .padding(horizontal = 5.dp)
     ) {
         HorizontalPager(
             count = images.size,
@@ -279,7 +400,12 @@ fun BannerSection() {
 }
 
 @Composable
-fun ProductItem(product: Product, onClick: () -> Unit) {
+fun ProductItem(
+    product: Product,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    println("Rendering Product: ${product.name}")
     val numberFormat = remember {
         NumberFormat.getNumberInstance(Locale("vi", "VN")).apply {
             minimumFractionDigits = 0
@@ -287,8 +413,7 @@ fun ProductItem(product: Product, onClick: () -> Unit) {
         }
     }
     Card(
-        modifier = Modifier
-            .padding(0.dp)
+        modifier = modifier
             .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onClick),
         elevation = 4.dp
@@ -298,9 +423,10 @@ fun ProductItem(product: Product, onClick: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box {
-                Image(
-                    painter = painterResource(id = product.imageUrl),
+                AsyncImage(
+                    model = product.imageUrl,
                     contentDescription = product.name,
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(150.dp)
                         .clip(RoundedCornerShape(8.dp))
@@ -321,7 +447,7 @@ fun ProductItem(product: Product, onClick: () -> Unit) {
                 maxLines = 1
             )
             Text(
-                text = product.description,
+                text = product.brand,
                 fontSize = 12.sp,
                 color = Color.Gray
             )

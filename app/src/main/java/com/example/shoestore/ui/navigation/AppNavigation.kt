@@ -39,7 +39,7 @@ fun AppNavigation() {
         composable("SearchScreen") { SearchScreen(navController) }
         composable("CartScreen") { CartScreen(navController) }
         composable("ProfileScreen") { ProfileScreen(navController) }
-        composable("CheckoutScreen") { CheckoutScreen(navController) }
+//        composable("CheckoutScreen") { CheckoutScreen(navController) }
         composable("AccountScreen") { AccountScreen(navController) }
         composable("OrderHistoryScreen") { OrderHistoryScreen(navController) }
         composable("AddressScreen") { AddressScreen(navController) }
@@ -57,6 +57,30 @@ fun AppNavigation() {
         composable("WelcomeScreen") { WelcomeScreen(navController) }
         composable("SplashScreen") { SplashScreen(navController) }
         composable("ForgotPasswordScreen") { ForgotPasswordScreen(navController) }
+
+        // Thêm route cho CheckoutScreen với argument từ "Mua ngay"
+        composable(
+            route = "CheckoutScreen/{productId}/{size}",
+            arguments = listOf(
+                navArgument("productId") { type = NavType.IntType },
+                navArgument("size") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            CheckoutScreen(navController, backStackEntry)
+        }
+
+        // Thêm route cho CheckoutScreen với query parameter từ "Thanh toán"
+        composable(
+            route = "CheckoutScreen?cartItems={cartItems}",
+            arguments = listOf(
+                navArgument("cartItems") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                }
+            )
+        ) { backStackEntry ->
+            CheckoutScreen(navController, backStackEntry)
+        }
 
 //        composable(
 //            route = "order_detail/{orderId}",

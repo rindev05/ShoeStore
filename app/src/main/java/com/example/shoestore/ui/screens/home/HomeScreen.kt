@@ -2,42 +2,53 @@ package com.example.shoestore.ui.screens.home
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.material.*
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.ShoppingBag
-import androidx.compose.runtime.*
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
-import com.google.accompanist.pager.*
-import kotlinx.coroutines.launch
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.shoestore.R
-import com.example.shoestore.data.model.Product
+import com.google.accompanist.pager.*
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.text.NumberFormat
 import java.util.Locale
+import kotlin.random.Random
+import com.example.shoestore.ui.screens.search.SearchPopup
+
+data class Product(
+    val id: Int,
+    val name: String,
+    val price: Double,
+    val brand: String,
+    val imageUrl: String = "" // Thêm mặc định để tương thích với dữ liệu từ Firestore
+)
 
 @Composable
 fun AppBar(onSearchClick: () -> Unit) {
@@ -56,106 +67,167 @@ fun AppBar(onSearchClick: () -> Unit) {
                 painter = painterResource(id = R.drawable.shoe_logo),
                 contentDescription = "Logo",
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.size(120.dp) // Điều chỉnh kích thước logo nếu cần
+                modifier = Modifier.size(120.dp)
             )
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = "Search Icon",
                 modifier = Modifier
                     .size(24.dp)
-                    .clickable { onSearchClick() } // Gọi hàm mở popup khi nhấn
+                    .clickable { onSearchClick() }
             )
         }
     }
 }
 
+// Composable mới để hiển thị giao diện Splash mà không có logic điều hướng
 @Composable
-fun SearchPopup(onDismiss: () -> Unit) {
-    // State để quản lý nội dung tìm kiếm
-    var searchQuery by remember { mutableStateOf("") }
-    val focusRequester = remember { FocusRequester() }
-    val focusManager = LocalFocusManager.current
-
-    // Box để tạo popup toàn màn hình
+fun SplashLoadingScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(Color.Black),
+        contentAlignment = Alignment.Center
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Nút quay lại
-                IconButton(onClick = {
-                    focusManager.clearFocus() // Đóng bàn phím
-                    onDismiss() // Đóng popup
-                }) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Color.Black
-                    )
-                }
-                // Thanh tìm kiếm
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester),
-//                        .clip(RoundedCornerShape(50.dp)),
-                    placeholder = { Text("Search for shoes...") },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(
-                                    imageVector = Icons.Default.Clear,
-                                    contentDescription = "Clear",
-                                    tint = Color.Gray
-                                )
-                            }
-                        }
-                    },
-                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = {
-                        // Xử lý tìm kiếm (có thể thêm logic ở đây)
-                        focusManager.clearFocus()
-                    }),
-                    singleLine = true,
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        focusedBorderColor = Color.Black,
-                        unfocusedBorderColor = Color.Gray
-                    )
-                )
-            }
-            // Có thể thêm nội dung khác cho popup, như gợi ý tìm kiếm
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Search Suggestions or Results",
-                style = MaterialTheme.typography.body1,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
-        }
-    }
-
-    // Tự động mở bàn phím khi popup xuất hiện
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
+        Image(
+            painter = painterResource(id = R.drawable.shoe_logo),
+            contentDescription = "Logo",
+            modifier = Modifier.size(180.dp),
+            colorFilter = ColorFilter.tint(Color.White)
+        )
     }
 }
 
 @Composable
 fun HomeScreen(navController: NavController) {
-    // State để kiểm soát hiển thị popup
     var showSearchPopup by remember { mutableStateOf(false) }
+    var bestsellers by remember { mutableStateOf<List<Product>>(emptyList()) }
+    var recentlyViewed by remember { mutableStateOf<List<Product>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    val productsBitis = remember { mutableStateListOf<com.example.shoestore.ui.screens.search.Product>() }
+    val productsNike = remember { mutableStateListOf<com.example.shoestore.ui.screens.search.Product>() }
+    val productsAdidas = remember { mutableStateListOf<com.example.shoestore.ui.screens.search.Product>() }
+    val allProducts_search = remember { mutableStateListOf<com.example.shoestore.ui.screens.search.Product>() }
+
+    // Tải dữ liệu từ Firestore cho Bestsellers và Recently Viewed
+    LaunchedEffect(Unit) {
+        val db = FirebaseFirestore.getInstance()
+        val collections = listOf("products-bitis", "products-nike", "products-adidas")
+        val allProducts = mutableListOf<Product>()
+
+        // Tìm kiếm sản phẩm
+        val collections1 = mapOf(
+            "products-bitis" to productsBitis,
+            "products-nike" to productsNike,
+            "products-adidas" to productsAdidas
+        )
+
+        collections1.forEach { (collectionName, productList) ->
+            try {
+                val result = db.collection(collectionName).get().await()
+                val productListData = result.documents.mapNotNull { document ->
+                    val data = document.data
+                    println("Document data from $collectionName: $data")
+                    data?.let {
+                        com.example.shoestore.ui.screens.search.Product(
+                            id = (it["id"] as? Long)?.toInt() ?: 0,
+                            name = it["name"] as? String ?: "",
+                            price = (it["price"] as? Number)?.toDouble() ?: 0.0,
+                            brand = it["brand"] as? String ?: "",
+                            imageUrl = it["imageUrl"] as? String ?: ""
+                        )
+                    }
+                }
+                productList.clear()
+                productList.addAll(productListData)
+            } catch (e: Exception) {
+                println("Error getting products from $collectionName: $e")
+            }
+        }
+        // Cập nhật allProducts bằng cách gộp và xáo trộn
+        allProducts_search.clear()
+        allProducts_search.addAll(productsBitis)
+        allProducts_search.addAll(productsNike)
+        allProducts_search.addAll(productsAdidas)
+        allProducts_search.shuffle()
+
+        // Tải dữ liệu từ 3 collections cho Bestsellers
+        for (collection in collections) {
+            try {
+                val snapshot = db.collection(collection).get().await()
+                val products = snapshot.documents.mapNotNull { doc ->
+                    val data = doc.data
+                    data?.let {
+                        Product(
+                            id = (it["id"] as? Long)?.toInt() ?: 0,
+                            name = it["name"] as? String ?: "",
+                            price = (it["price"] as? Number)?.toDouble() ?: 0.0,
+                            brand = it["brand"] as? String ?: "",
+                            imageUrl = it["imageUrl"] as? String ?: ""
+                        )
+                    }
+                }
+                allProducts.addAll(products)
+            } catch (e: Exception) {
+                println("Error loading products from $collection: $e")
+            }
+        }
+
+        // Lấy ngẫu nhiên 6 sản phẩm cho Bestsellers
+        bestsellers = if (allProducts.size >= 6) {
+            allProducts.shuffled(Random(System.currentTimeMillis())).take(6)
+        } else {
+            allProducts.shuffled(Random(System.currentTimeMillis()))
+        }
+
+        // Tải dữ liệu Recently Viewed cho user hiện tại
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user != null) {
+            try {
+                val userDoc = db.collection("users").document(user.uid).get().await()
+                val recentlyViewedIds = userDoc.get("recentlyViewed") as? List<Long> ?: emptyList()
+
+                // Lấy thông tin sản phẩm từ các collections dựa trên danh sách recentlyViewedIds
+                val recentlyViewedProducts = mutableListOf<Product>()
+                for (id in recentlyViewedIds) {
+                    for (collection in collections) {
+                        val productSnapshot = db.collection(collection)
+                            .whereEqualTo("id", id)
+                            .get()
+                            .await()
+                        if (productSnapshot.documents.isNotEmpty()) {
+                            val doc = productSnapshot.documents.first()
+                            val data = doc.data
+                            val product = data?.let {
+                                Product(
+                                    id = (it["id"] as? Long)?.toInt() ?: 0,
+                                    name = it["name"] as? String ?: "",
+                                    price = (it["price"] as? Number)?.toDouble() ?: 0.0,
+                                    brand = it["brand"] as? String ?: "",
+                                    imageUrl = it["imageUrl"] as? String ?: ""
+                                )
+                            }
+                            if (product != null) {
+                                recentlyViewedProducts.add(product)
+                                break
+                            }
+                        }
+                    }
+                }
+                // Hiển thị theo thứ tự mới nhất ở bên phải
+                recentlyViewed = recentlyViewedProducts.reversed().take(10)
+            } catch (e: Exception) {
+                println("Error loading recently viewed: $e")
+            }
+        }
+        isLoading = false
+    }
+
+    if (isLoading) {
+        SplashLoadingScreen()
+        return
+    }
 
     Scaffold(
         topBar = {
@@ -174,15 +246,18 @@ fun HomeScreen(navController: NavController) {
                 item { Spacer(modifier = Modifier.height(16.dp)) }
                 item { ShopByBrandSection() }
                 item { Spacer(modifier = Modifier.height(5.dp)) }
-                item { BestsellersSection(navController) }
+                item { BestsellersSection(navController, bestsellers) }
                 item { Spacer(modifier = Modifier.height(16.dp)) }
-                item { RecentlyViewedSection(navController) }
+                item { RecentlyViewedSection(navController, recentlyViewed) }
             }
         }
 
-        // Hiển thị popup tìm kiếm khi showSearchPopup = true
         if (showSearchPopup) {
-            SearchPopup(onDismiss = { showSearchPopup = false })
+            SearchPopup(
+                allProducts = allProducts_search,
+                navController = navController,
+                onDismiss = { showSearchPopup = false }
+            )
         }
     }
 }
@@ -201,8 +276,7 @@ fun BannerSection() {
         R.drawable.banner8
     )
 
-    Column (modifier = Modifier.fillMaxWidth().padding(5.dp))
-    {
+    Column(modifier = Modifier.fillMaxWidth().padding(5.dp)) {
         HorizontalPager(
             count = images.size,
             state = pagerState,
@@ -270,27 +344,19 @@ fun BrandItem(logoResId: Int) {
     }
 }
 
-@OptIn(ExperimentalPagerApi::class)
 @Composable
-fun BestsellersSection(navController: NavController) {
-
-    // Sử dụng danh sách Product thay vì danh sách imageResId
-    val products = listOf(
-        Product(1, "Nike Dunk Low Retro", 2929000.0, 4.5f, R.drawable.sa12_1, "Men's Shoes"),
-        Product(2, "Nike Pegasus Plus", 5279000.0, 4.0f, R.drawable.sa13_1, "Men's Road Running Shoes"),
-        Product(3, "Nike Pegasus 41", 2929000.0, 4.2f, R.drawable.sb13_1, "Men's Road Running Shoes"),
-        Product(4, "Nike P-6000", 2929000.0, 4.3f, R.drawable.sn16_1, "Shoes"),
-        Product(1, "Nike Dunk Low Retro", 2929000.0, 4.5f, R.drawable.sa12_1, "Men's Shoes"),
-        Product(2, "Nike Pegasus Plus", 5279000.0, 4.0f, R.drawable.sa13_1, "Men's Road Running Shoes")
-    )
-
+fun BestsellersSection(navController: NavController, products: List<Product>) {
     Column(modifier = Modifier.padding(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "Our Bestsellers", style = MaterialTheme.typography.h6, modifier = Modifier.padding(start = 5.dp))
+            Text(
+                text = "Our Bestsellers",
+                style = MaterialTheme.typography.h6,
+                modifier = Modifier.padding(start = 5.dp)
+            )
             TextButton(onClick = {
                 navController.navigate("productList")
             }) {
@@ -299,47 +365,55 @@ fun BestsellersSection(navController: NavController) {
         }
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Hiển thị 6 sản phẩm trong 2 hàng và 3 cột
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { // Giảm khoảng cách giữa các hàng
+        // Hiển thị 6 sản phẩm trong 2 hàng, mỗi hàng 3 sản phẩm
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp) // Giảm khoảng cách giữa các sản phẩm
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 products.take(3).forEach { product ->
-                    ProductItem(product = product, onClick = { navController.navigate("product/${product.id}") })
+                    ProductItem(product = product, onClick = {
+                        navController.navigate("product/${product.id}")
+                        // Lưu vào recently viewed khi click vào sản phẩm
+                        saveToRecentlyViewed(product.id)
+                    })
                 }
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp) // Giảm khoảng cách giữa các sản phẩm
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 products.drop(3).forEach { product ->
-                    ProductItem(product = product, onClick = { navController.navigate("product/${product.id}") })
+                    ProductItem(product = product, onClick = {
+                        navController.navigate("product/${product.id}")
+                        // Lưu vào recently viewed khi click vào sản phẩm
+                        saveToRecentlyViewed(product.id)
+                    })
                 }
             }
         }
     }
 }
 
-
 @Composable
-fun RecentlyViewedSection(navController: NavController) {
-    // Sử dụng danh sách Product thay vì danh sách imageResId
-    val recentlyViewed = listOf(
-        Product(3, "Nike Pegasus 41", 2929000.0, 4.2f, R.drawable.sb13_1, "Men's Road Running Shoes"),
-        Product(4, "Nike P-6000", 2929000.0, 4.3f, R.drawable.sn16_1, "Shoes"),
-        Product(1, "Nike Dunk Low Retro", 2929000.0, 4.5f, R.drawable.sa12_1, "Men's Shoes"),
-        Product(2, "Nike Pegasus Plus", 5279000.0, 4.0f, R.drawable.sa13_1, "Men's Road Running Shoes")
-    )
+fun RecentlyViewedSection(navController: NavController, recentlyViewed: List<Product>) {
+    if (recentlyViewed.isEmpty()) return
 
     Column(modifier = Modifier.padding(16.dp)) {
         Text(text = "Recently Viewed", style = MaterialTheme.typography.h6)
         Spacer(modifier = Modifier.height(8.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            reverseLayout = true // Đảo chiều hiển thị từ phải sang trái
+        ) {
             items(recentlyViewed.size) { index ->
                 ProductItem(
                     product = recentlyViewed[index],
-                    onClick = { navController.navigate("product/${recentlyViewed[index].id}") }
+                    onClick = {
+                        navController.navigate("product/${recentlyViewed[index].id}")
+                        // Lưu lại vào recently viewed khi click
+                        saveToRecentlyViewed(recentlyViewed[index].id)
+                    }
                 )
             }
         }
@@ -348,7 +422,6 @@ fun RecentlyViewedSection(navController: NavController) {
 
 @Composable
 fun ProductItem(product: Product, onClick: () -> Unit) {
-
     val numberFormat = remember {
         NumberFormat.getNumberInstance(Locale("vi", "VN")).apply {
             minimumFractionDigits = 0
@@ -361,18 +434,49 @@ fun ProductItem(product: Product, onClick: () -> Unit) {
             .width(110.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(Color.White)
-            .clickable(onClick = onClick) // Thêm sự kiện nhấp
+            .clickable(onClick = onClick)
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Image(
-                painter = painterResource(id = product.imageUrl),
-                contentDescription = "Product Image",
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(RoundedCornerShape(12.dp))
+            if (product.imageUrl.isNotEmpty()) {
+                AsyncImage(
+                    model = product.imageUrl,
+                    contentDescription = "Product Image",
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.Gray),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No Image", color = Color.White, fontSize = 12.sp)
+                }
+            }
+            Text(
+                text = product.name,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(4.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            Text(text = product.name, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(4.dp))
-            Text(text = "${numberFormat.format(product.price)} đ", color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(4.dp))
+            Text(
+                text = product.brand,
+                fontSize = 12.sp,
+                color = Color.Gray,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+            Text(
+                text = "${numberFormat.format(product.price)} đ",
+                color = Color.Gray,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(4.dp)
+            )
         }
     }
 }
@@ -408,7 +512,7 @@ fun BottomNavigationBar(navController: NavController) {
                     )
                 }
             },
-            alwaysShowLabel = false // Không hiển thị text
+            alwaysShowLabel = false
         )
         BottomNavigationItem(
             selected = selectedIndex.value == 1,
@@ -488,5 +592,29 @@ fun BottomNavigationBar(navController: NavController) {
             },
             alwaysShowLabel = false
         )
+    }
+}
+
+// Hàm lưu sản phẩm vào danh sách recently viewed của user
+fun saveToRecentlyViewed(productId: Int) {
+    val user = FirebaseAuth.getInstance().currentUser
+    if (user != null) {
+        val db = FirebaseFirestore.getInstance()
+        val userRef = db.collection("users").document(user.uid)
+
+        // Cập nhật danh sách recentlyViewed, thêm productId vào đầu và giới hạn 10 phần tử
+        userRef.update("recentlyViewed", FieldValue.arrayUnion(productId.toLong()))
+            .addOnSuccessListener {
+                userRef.get().addOnSuccessListener { document ->
+                    val currentList = document.get("recentlyViewed") as? List<Long> ?: emptyList()
+                    if (currentList.size > 10) {
+                        val trimmedList = currentList.takeLast(10) // Giữ 10 phần tử cuối, xóa phần tử đầu
+                        userRef.update("recentlyViewed", trimmedList)
+                    }
+                }
+            }
+            .addOnFailureListener { e ->
+                println("Error saving to recently viewed: $e")
+            }
     }
 }

@@ -1,5 +1,6 @@
 package com.example.shoestore.ui.cart
 
+import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,52 +27,70 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.shoestore.R
-import com.example.shoestore.data.model.Product
+import com.example.shoestore.ui.screens.detail.Product // Import Product từ package detail
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.text.NumberFormat
 import java.util.Locale
-import kotlinx.coroutines.launch
 
-data class CartItem(val product: Product, val size: Int, var quantity: Int)
+data class CartItem(
+    val product: Product,
+    val size: Int,
+    val quantity: MutableState<Int>
+)
 
 @Composable
 fun CartScreen(navController: NavController) {
-    // Danh sách sản phẩm trong giỏ hàng
-    val cartItems = remember {
-        mutableStateListOf(
-            CartItem(
-                product = Product(1, "Air Zoom Pegasus 37", 4599000.0, 4.5f, R.drawable.sa12_1, "Men's Shoes"),
-                size = 41,
-                quantity = 1
-            ),
-            CartItem(
-                product = Product(2, "Air Zoom Pegasus 38", 4599000.0, 4.0f, R.drawable.sa13_1, "Men's Road Running Shoes"),
-                size = 39,
-                quantity = 2
-            ),
-            CartItem(
-                product = Product(3, "Air Zoom Pegasus 38", 4599000.0, 4.0f, R.drawable.sb13_1, "Men's Road Running Shoes"),
-                size = 45,
-                quantity = 3
-            ),
-            CartItem(
-                product = Product(4, "Air Zoom Pegasus 38", 4599000.0, 4.0f, R.drawable.sn16_1, "Men's Road Running Shoes"),
-                size = 40,
-                quantity = 4
-            )
-
-        )
-    }
+    // Danh sách sản phẩm trong giỏ hàng từ Firestore
+    val cartItems = remember { mutableStateListOf<CartItem>() }
+    val coroutineScope = rememberCoroutineScope()
 
     // Tính tổng tiền
     val totalPrice by remember(cartItems) {
         derivedStateOf {
-            cartItems.sumOf { it.product.price * it.quantity }
+            cartItems.sumOf { it.product.price * it.quantity.value }
         }
     }
 
     // State cho mã giảm giá
     var couponCode by remember { mutableStateOf("") }
+
+    // Tải dữ liệu giỏ hàng từ Firestore
+    LaunchedEffect(Unit) {
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user != null) {
+            val db = FirebaseFirestore.getInstance()
+            val cartSnapshot = db.collection("users")
+                .document(user.uid)
+                .collection("cart")
+                .get()
+                .await()
+
+            val cartItemsFromFirestore = cartSnapshot.documents.mapNotNull { doc ->
+                val data = doc.data
+                data?.let {
+                    CartItem(
+                        product = Product(
+                            id = (it["productId"] as? Long)?.toInt() ?: 0,
+                            name = it["name"] as? String ?: "",
+                            price = (it["price"] as? Number)?.toDouble() ?: 0.0,
+                            brand = "",
+                            imageUrl = it["imageUrl"] as? String ?: "",
+                            description = ""
+                        ),
+                        size = (it["size"] as? Long)?.toInt() ?: 0,
+                        quantity = mutableStateOf((it["quantity"] as? Long)?.toInt() ?: 1)
+                    )
+                }
+            }
+            cartItems.clear()
+            cartItems.addAll(cartItemsFromFirestore)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -109,7 +128,35 @@ fun CartScreen(navController: NavController) {
                     .padding(horizontal = 16.dp)
             ) {
                 items(cartItems) { cartItem ->
-                    CartItemRow(cartItem = cartItem)
+                    CartItemRow(
+                        cartItem = cartItem,
+                        onQuantityChanged = { newQuantity ->
+                            val user = FirebaseAuth.getInstance().currentUser
+                            if (user != null) {
+                                val db = FirebaseFirestore.getInstance()
+                                val cartDocId = "${cartItem.product.id}_${cartItem.size}"
+                                if (newQuantity > 0) {
+                                    // Cập nhật số lượng trên Firestore
+                                    db.collection("users")
+                                        .document(user.uid)
+                                        .collection("cart")
+                                        .document(cartDocId)
+                                        .update("quantity", newQuantity)
+                                } else {
+                                    // Xóa sản phẩm khỏi Firestore
+                                    db.collection("users")
+                                        .document(user.uid)
+                                        .collection("cart")
+                                        .document(cartDocId)
+                                        .delete()
+                                        .addOnSuccessListener {
+                                            // Xóa sản phẩm khỏi danh sách giao diện
+                                            cartItems.remove(cartItem)
+                                        }
+                                }
+                            }
+                        }
+                    )
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
@@ -132,7 +179,8 @@ fun CartScreen(navController: NavController) {
                         onValueChange = { couponCode = it },
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(0.dp)).border(1.dp,Color.Black),
+                            .clip(RoundedCornerShape(0.dp))
+                            .border(1.dp, Color.Black),
                         placeholder = { Text("Nhập mã giảm giá của bạn") },
                         keyboardOptions = KeyboardOptions.Default.copy(
                             imeAction = ImeAction.Done,
@@ -186,7 +234,10 @@ fun CartScreen(navController: NavController) {
 
                 // Nút Thanh toán
                 Button(
-                    onClick = { navController.navigate("CheckoutScreen") },
+                    onClick = {
+                        val cartItemsJson = Uri.encode(cartItems.map { "${it.product.id},${it.size},${it.quantity.value}" }.joinToString(";"))
+                        navController.navigate("CheckoutScreen?cartItems=$cartItemsJson")
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp)
@@ -206,7 +257,7 @@ fun CartScreen(navController: NavController) {
 }
 
 @Composable
-fun CartItemRow(cartItem: CartItem) {
+fun CartItemRow(cartItem: CartItem, onQuantityChanged: (Int) -> Unit) {
     val numberFormat = NumberFormat.getNumberInstance(Locale("vi", "VN")).apply {
         minimumFractionDigits = 0
         maximumFractionDigits = 0
@@ -215,21 +266,22 @@ fun CartItemRow(cartItem: CartItem) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp)) // Bo góc nhẹ
-            .background(Color(0xFFF6F6F6)) // Màu nền xám nhạt
-            .padding(12.dp), // Padding vừa phải
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFF6F6F6))
+            .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Hình ảnh sản phẩm
-        Image(
-            painter = painterResource(id = cartItem.product.imageUrl),
+        AsyncImage(
+            model = cartItem.product.imageUrl,
             contentDescription = cartItem.product.name,
             modifier = Modifier
-                .size(80.dp) // Kích thước ảnh
-                .clip(RoundedCornerShape(12.dp)) // Bo góc ảnh
+                .size(80.dp)
+                .clip(RoundedCornerShape(12.dp)),
+            contentScale = ContentScale.Crop
         )
 
-        Spacer(modifier = Modifier.width(12.dp)) // Khoảng cách giữa ảnh và thông tin
+        Spacer(modifier = Modifier.width(12.dp))
 
         // Thông tin sản phẩm
         Column(
@@ -237,13 +289,13 @@ fun CartItemRow(cartItem: CartItem) {
         ) {
             Text(
                 text = cartItem.product.name,
-                fontSize = 14.sp, // Font chữ vừa
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                maxLines = 1 // Giới hạn 1 dòng
+                maxLines = 1
             )
             Text(
                 text = "Kích cỡ: ${cartItem.size}",
-                fontSize = 12.sp, // Font chữ nhỏ hơn
+                fontSize = 12.sp,
                 color = Color.Gray
             )
             Text(
@@ -259,42 +311,48 @@ fun CartItemRow(cartItem: CartItem) {
         ) {
             IconButton(
                 onClick = {
-                    if (cartItem.quantity > 1) cartItem.quantity--
+                    val newQuantity = cartItem.quantity.value - 1
+                    cartItem.quantity.value = newQuantity
+                    onQuantityChanged(newQuantity)
                 },
                 modifier = Modifier
-                    .size(28.dp) // Kích thước nút nhỏ hơn
+                    .size(28.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFE0E0E0)) // Màu nền
+                    .background(Color(0xFFE0E0E0))
             ) {
                 Icon(
                     imageVector = Icons.Default.Remove,
                     contentDescription = "Decrease",
-                    tint = Color.Black, // Màu icon
-                    modifier = Modifier.size(16.dp) // Kích thước icon nhỏ hơn
+                    tint = Color.Black,
+                    modifier = Modifier.size(16.dp)
                 )
             }
 
             Text(
-                text = cartItem.quantity.toString(),
+                text = cartItem.quantity.value.toString(),
                 modifier = Modifier
                     .padding(horizontal = 4.dp)
                     .width(24.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                fontSize = 14.sp // Font chữ vừa
+                fontSize = 14.sp
             )
 
             IconButton(
-                onClick = { cartItem.quantity++ },
+                onClick = {
+                    val newQuantity = cartItem.quantity.value + 1
+                    cartItem.quantity.value = newQuantity
+                    onQuantityChanged(newQuantity)
+                },
                 modifier = Modifier
-                    .size(28.dp) // Kích thước nút nhỏ hơn
+                    .size(28.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFE0E0E0)) // Màu nền
+                    .background(Color(0xFFE0E0E0))
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = "Increase",
-                    tint = Color.Black, // Màu icon
-                    modifier = Modifier.size(16.dp) // Kích thước icon nhỏ hơn
+                    tint = Color.Black,
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
@@ -325,7 +383,7 @@ fun BottomNavigationBar(navController: NavController) {
                             shape = RoundedCornerShape(24.dp)
                         )
                 ) {
-                    androidx.compose.material3.Icon(
+                    Icon(
                         Icons.Default.Home,
                         contentDescription = "Home",
                         tint = if (selectedIndex.value == 0) Color.White else Color.Black,
@@ -351,7 +409,7 @@ fun BottomNavigationBar(navController: NavController) {
                             shape = RoundedCornerShape(24.dp)
                         )
                 ) {
-                    androidx.compose.material3.Icon(
+                    Icon(
                         Icons.Default.Search,
                         contentDescription = "Search",
                         tint = if (selectedIndex.value == 1) Color.White else Color.Black,
@@ -377,7 +435,7 @@ fun BottomNavigationBar(navController: NavController) {
                             shape = RoundedCornerShape(24.dp)
                         )
                 ) {
-                    androidx.compose.material3.Icon(
+                    Icon(
                         Icons.Default.ShoppingBag,
                         contentDescription = "Cart",
                         tint = if (selectedIndex.value == 2) Color.White else Color.Black,
@@ -403,7 +461,7 @@ fun BottomNavigationBar(navController: NavController) {
                             shape = RoundedCornerShape(24.dp)
                         )
                 ) {
-                    androidx.compose.material.Icon(
+                    Icon(
                         Icons.Default.Person,
                         contentDescription = "Profile",
                         tint = if (selectedIndex.value == 3) Color.White else Color.Black,
