@@ -32,6 +32,9 @@ import com.example.shoestore.R
 import com.example.shoestore.ui.auth.signup.SignUpScreen
 import com.example.shoestore.ui.theme.ShoeStoreTheme
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 @Composable
 fun AnimatedBackground() {
@@ -95,6 +98,9 @@ fun LoginScreen(navController: NavController) {
     var passwordVisible by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val activity = context as? android.app.Activity
+    val auth = FirebaseAuth.getInstance()
+    val db = FirebaseFirestore.getInstance()
+    val coroutineScope = rememberCoroutineScope()
 
     ShoeStoreTheme {
         Box(
@@ -213,15 +219,30 @@ fun LoginScreen(navController: NavController) {
                                     return@Button
                                 }
 
-                                FirebaseAuth.getInstance().signInWithEmailAndPassword(email, password)
-                                    .addOnCompleteListener { task ->
-                                        if (task.isSuccessful) {
-                                            Toast.makeText(context, "Đăng nhập thành công!", Toast.LENGTH_LONG).show()
-                                            navController.navigate("home")
+                                coroutineScope.launch {
+                                    try {
+                                        val authResult = auth.signInWithEmailAndPassword(email, password).await()
+                                        val userId = authResult.user?.uid ?: ""
+
+                                        // Kiểm tra vai trò admin trong Firestore
+                                        val userDoc = db.collection("users").document(userId).get().await()
+                                        val isAdmin = userDoc.getBoolean("isAdmin") ?: false
+
+                                        if (isAdmin) {
+                                            Toast.makeText(context, "Đăng nhập admin thành công!", Toast.LENGTH_LONG).show()
+                                            navController.navigate("AdminDashboard") {
+                                                popUpTo("LoginScreen") { inclusive = true }
+                                            }
                                         } else {
-                                            Toast.makeText(context, "Đăng nhập thất bại: ${task.exception?.message}", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "Đăng nhập user thành công!", Toast.LENGTH_LONG).show()
+                                            navController.navigate("home") {
+                                                popUpTo("LoginScreen") { inclusive = true }
+                                            }
                                         }
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Đăng nhập thất bại: ${e.message}", Toast.LENGTH_SHORT).show()
                                     }
+                                }
                             },
                             modifier = Modifier
                                 .fillMaxWidth()

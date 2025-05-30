@@ -1,4 +1,4 @@
-package com.example.shoestore.ui.order
+package com.example.shoestore.ui.screens.admin.order
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -13,16 +13,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.shoestore.ui.theme.ShoeStoreTheme
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -51,22 +51,25 @@ data class OrderDetail(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OrderDetailScreen(navController: NavController, orderId: String = "") {
+fun AdminOrderDetailScreen(
+    navController: NavController,
+    orderId: String = "",
+    userId: String = ""
+) {
     val db = FirebaseFirestore.getInstance()
-    val user = FirebaseAuth.getInstance().currentUser
     var order by remember { mutableStateOf<OrderDetail?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
 
     // Lấy chi tiết đơn hàng từ Firestore và lưu document ID
     var documentId by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(orderId, user) {
-        if (user != null && orderId.isNotEmpty()) {
+    LaunchedEffect(orderId, userId) {
+        if (userId.isNotEmpty() && orderId.isNotEmpty()) {
             coroutineScope.launch {
                 try {
-                    println("Fetching order with orderId: $orderId for user: ${user.uid}")
+                    println("Fetching order with orderId: $orderId for user: $userId")
                     val snapshot = db.collection("users")
-                        .document(user.uid)
+                        .document(userId)
                         .collection("orders")
                         .whereEqualTo("orderId", orderId)
                         .get()
@@ -109,32 +112,7 @@ fun OrderDetailScreen(navController: NavController, orderId: String = "") {
                 }
             }
         } else {
-            errorMessage = if (user == null) "Vui lòng đăng nhập!" else "Không có mã đơn hàng!"
-        }
-    }
-
-    // Hàm xóa đơn hàng sử dụng document ID
-    fun deleteOrder() {
-        if (documentId != null && user != null) {
-            coroutineScope.launch {
-                try {
-                    db.collection("users")
-                        .document(user.uid)
-                        .collection("orders")
-                        .document(documentId!!)
-                        .delete()
-                        .await()
-                    println("Order deleted successfully: $documentId")
-                    order = null // Đặt order thành null để giao diện cập nhật
-                    navController.popBackStack() // Quay lại màn hình trước
-                } catch (e: Exception) {
-                    errorMessage = "Lỗi khi xóa đơn hàng: ${e.message}"
-                    println("Error deleting order: ${e.message}")
-                }
-            }
-        } else {
-            errorMessage = "Không tìm thấy ID đơn hàng để xóa!"
-            println("Document ID is null")
+            errorMessage = "Thiếu thông tin userId hoặc orderId!"
         }
     }
 
@@ -173,7 +151,7 @@ fun OrderDetailScreen(navController: NavController, orderId: String = "") {
                         fontSize = 20.sp,
                         color = Color.White,
                         modifier = Modifier.weight(1f),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.size(48.dp))
                 }
@@ -470,102 +448,104 @@ fun OrderDetailScreen(navController: NavController, orderId: String = "") {
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Nút "Hủy đơn hàng" hoặc "Đã nhận hàng" và "Đánh giá"
+                        // Nút "Xác nhận" và "Đã giao"
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            if (!order?.isConfirm!! && !order?.isDelivery!! && !order?.isReceipt!! && !order?.isRate!!) {
-                                OutlinedButton(
-                                    onClick = { deleteOrder() },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(50.dp),
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(width = 2.dp, color = Color.Red),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = Color.Red
-                                    )
-                                ) {
-                                    Text("Hủy đơn hàng", fontSize = 14.sp)
-                                }
-                                Spacer(modifier = Modifier.weight(1f))
-                            } else if (order?.isConfirm!! && order?.isDelivery!! && !order?.isReceipt!! && !order?.isRate!!) {
-                                OutlinedButton(
-                                    onClick = { /* Do nothing yet */ },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(50.dp)
-                                        .alpha(0.5f),
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(width = 2.dp, color = Color.Red),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = Color.Red
-                                    ),
-                                    enabled = false
-                                ) {
-                                    Text("Đã nhận hàng", fontSize = 14.sp)
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                OutlinedButton(
-                                    onClick = { /* Do nothing yet */ },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(50.dp)
-                                        .alpha(0.5f),
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(width = 2.dp, color = Color.White),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = Color.White
-                                    ),
-                                    enabled = false
-                                ) {
-                                    Text("Đánh giá", fontSize = 14.sp)
-                                }
-                            } else if (order?.isConfirm!! && order?.isDelivery!! && order?.isReceipt!! && !order?.isRate!!) {
-                                OutlinedButton(
+                            if (order?.status != "Đã xác nhận" && order?.status != "Đã giao") {
+                                Button(
                                     onClick = {
-                                        coroutineScope.launch {
-                                            try {
-                                                db.collection("users")
-                                                    .document(user!!.uid)
-                                                    .collection("orders")
-                                                    .document(documentId!!)
-                                                    .update("isReceipt", true)
-                                                    .await()
-                                                order = order?.copy(isReceipt = true)
-                                            } catch (e: Exception) {
-                                                println("Error updating receipt: ${e.message}")
+                                        if (documentId != null) {
+                                            coroutineScope.launch {
+                                                try {
+                                                    db.collection("users")
+                                                        .document(userId)
+                                                        .collection("orders")
+                                                        .document(documentId!!)
+                                                        .update(
+                                                            mapOf(
+                                                                "isConfirm" to true,
+                                                                "isDelivery" to true,
+                                                                "status" to "Đã xác nhận"
+                                                            )
+                                                        )
+                                                        .await()
+                                                    println("Order confirmed successfully: $documentId")
+                                                    order = order?.copy(
+                                                        isConfirm = true,
+                                                        isDelivery = true,
+                                                        status = "Đã xác nhận"
+                                                    )
+                                                } catch (e: Exception) {
+                                                    println("Error confirming order: ${e.message}")
+                                                    errorMessage = "Lỗi khi xác nhận đơn hàng: ${e.message}"
+                                                }
                                             }
+                                        } else {
+                                            println("Document ID is null, cannot confirm order")
+                                            errorMessage = "Không tìm thấy ID đơn hàng để xác nhận!"
                                         }
                                     },
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(50.dp),
                                     shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(width = 2.dp, color = Color.Red),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = Color.Red
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF2196F3)
                                     )
                                 ) {
-                                    Text("Đã nhận hàng", fontSize = 14.sp)
+                                    Text("Xác nhận", fontSize = 14.sp, color = Color.White)
                                 }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                OutlinedButton(
-                                    onClick = { navController.navigate("ProductReviewScreen") },
+                            } else {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            if (order?.status == "Đã xác nhận") {
+                                Button(
+                                    onClick = {
+                                        if (documentId != null) {
+                                            coroutineScope.launch {
+                                                try {
+                                                    db.collection("users")
+                                                        .document(userId)
+                                                        .collection("orders")
+                                                        .document(documentId!!)
+                                                        .update(
+                                                            mapOf(
+                                                                "isReceipt" to true,
+                                                                "status" to "Đã giao"
+                                                            )
+                                                        )
+                                                        .await()
+                                                    println("Order marked as delivered: $documentId")
+                                                    order = order?.copy(
+                                                        isReceipt = true,
+                                                        status = "Đã giao"
+                                                    )
+                                                } catch (e: Exception) {
+                                                    println("Error marking order as delivered: ${e.message}")
+                                                    errorMessage = "Lỗi khi đánh dấu đơn hàng đã giao: ${e.message}"
+                                                }
+                                            }
+                                        } else {
+                                            println("Document ID is null, cannot mark as delivered")
+                                            errorMessage = "Không tìm thấy ID đơn hàng để cập nhật!"
+                                        }
+                                    },
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(50.dp),
                                     shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(width = 2.dp, color = Color.White),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = Color.White
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color.Green
                                     )
                                 ) {
-                                    Text("Đánh giá", fontSize = 14.sp)
+                                    Text("Đã giao", fontSize = 14.sp, color = Color.White)
                                 }
                             } else {
-                                Spacer(modifier = Modifier.weight(1f))
                                 Spacer(modifier = Modifier.weight(1f))
                             }
                         }
@@ -579,7 +559,7 @@ fun OrderDetailScreen(navController: NavController, orderId: String = "") {
 }
 
 @Composable
-fun OrderStatusStep(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, isCompleted: Boolean) {
+fun OrderStatusStep(icon: ImageVector, label: String, isCompleted: Boolean) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -608,7 +588,7 @@ fun OrderStatusStep(icon: androidx.compose.ui.graphics.vector.ImageVector, label
             style = MaterialTheme.typography.bodySmall,
             fontSize = 12.sp,
             color = if (isCompleted) Color(0xFF4CAF50) else Color.Gray,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            textAlign = TextAlign.Center
         )
     }
 }

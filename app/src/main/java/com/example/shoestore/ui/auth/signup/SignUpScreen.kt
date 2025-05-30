@@ -38,7 +38,6 @@ import java.time.format.DateTimeFormatter
 
 @Composable
 fun AnimatedBackgroundSignUp() {
-    // Animation for right to left
     val rightToLeftOffset = rememberInfiniteTransition()
     val rightToLeftX = rightToLeftOffset.animateFloat(
         initialValue = 1000f,
@@ -49,7 +48,6 @@ fun AnimatedBackgroundSignUp() {
         )
     )
 
-    // Animation for left to right
     val leftToRightOffset = rememberInfiniteTransition()
     val leftToRightX = leftToRightOffset.animateFloat(
         initialValue = -1000f,
@@ -60,10 +58,7 @@ fun AnimatedBackgroundSignUp() {
         )
     )
 
-    Box(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // First text (right to left)
+    Box(modifier = Modifier.fillMaxSize()) {
         Text(
             text = "SHOE STORE   VIP STORE",
             style = MaterialTheme.typography.displayLarge.copy(fontSize = 100.sp),
@@ -73,8 +68,6 @@ fun AnimatedBackgroundSignUp() {
                 .offset(x = rightToLeftX.value.dp, y = (-230).dp)
                 .align(Alignment.Center)
         )
-
-        // Second text (left to right)
         Text(
             text = "SHOE STORE VIP PRO",
             style = MaterialTheme.typography.displayLarge.copy(fontSize = 100.sp),
@@ -95,13 +88,14 @@ fun SignUpScreen(navController: NavController) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-
-    // Date Picker state
-    var showDatePicker by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf("") }
+    var showDatePicker by remember { mutableStateOf(false) }
+    var isEmailSent by remember { mutableStateOf(false) }
+    var isEmailVerified by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val auth = FirebaseAuth.getInstance()
+    val db = FirebaseFirestore.getInstance()
 
-    // Tạo DatePicker state với ngày tối đa là hiện tại
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = null,
         selectableDates = object : SelectableDates {
@@ -111,7 +105,6 @@ fun SignUpScreen(navController: NavController) {
         }
     )
 
-    // Hiển thị DatePicker Dialog khi showDatePicker = true
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
@@ -134,33 +127,69 @@ fun SignUpScreen(navController: NavController) {
                 }
             }
         ) {
-            DatePicker(
-                state = datePickerState,
-                showModeToggle = false
-            )
+            DatePicker(state = datePickerState, showModeToggle = false)
         }
     }
 
-    ShoeStoreTheme {
-        Box(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // Background Animation
-            AnimatedBackgroundSignUp()
+    // Hàm kiểm tra trạng thái xác thực email
+    fun checkEmailVerification() {
+        auth.signInWithEmailAndPassword(email, password)
+            .addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    val user = task.result?.user
+                    if (user != null) {
+                        user.reload().addOnCompleteListener { reloadTask ->
+                            if (reloadTask.isSuccessful) {
+                                isEmailVerified = user.isEmailVerified
+                                if (isEmailVerified) {
+                                    Toast.makeText(
+                                        context,
+                                        "Email đã được xác thực! Bạn có thể đăng ký.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        "Email chưa được xác thực. Vui lòng kiểm tra email và bấm vào liên kết.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "Không thể kiểm tra trạng thái: ${reloadTask.exception?.message}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    } else {
+                        Toast.makeText(
+                            context,
+                            "Không tìm thấy thông tin người dùng",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                } else {
+                    Toast.makeText(
+                        context,
+                        "Đăng nhập thất bại: ${task.exception?.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+    }
 
-            // Main Content
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = Color.White.copy(alpha = 0.9f)
-            ) {
+    ShoeStoreTheme {
+        Box(modifier = Modifier.fillMaxSize()) {
+            AnimatedBackgroundSignUp()
+            Surface(modifier = Modifier.fillMaxSize(), color = Color.White.copy(alpha = 0.9f)) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 24.dp)
                         .verticalScroll(rememberScrollState()),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Logo container
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -176,14 +205,12 @@ fun SignUpScreen(navController: NavController) {
                                 .aspectRatio(1f)
                         )
                     }
-
                     Text(
                         text = "BECOME A SHOESTORE MEMBER",
                         style = MaterialTheme.typography.headlineLarge,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
-
                     Text(
                         text = "Create your ShoeStore Member profile and get first access to the very best of ShoeStore products, inspiration and community.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -191,15 +218,12 @@ fun SignUpScreen(navController: NavController) {
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
-
-                    // Form Fields
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // First Name
                         OutlinedTextField(
                             value = firstName,
                             onValueChange = { firstName = it },
@@ -207,8 +231,6 @@ fun SignUpScreen(navController: NavController) {
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
-
-                        // Last Name
                         OutlinedTextField(
                             value = lastName,
                             onValueChange = { lastName = it },
@@ -216,8 +238,6 @@ fun SignUpScreen(navController: NavController) {
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
-
-                        // Email
                         OutlinedTextField(
                             value = email,
                             onValueChange = { email = it },
@@ -226,39 +246,23 @@ fun SignUpScreen(navController: NavController) {
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
                         )
-
-                        // Password
                         OutlinedTextField(
                             value = password,
                             onValueChange = { password = it },
                             label = { Text("Password", style = MaterialTheme.typography.bodyMedium) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
-                            visualTransformation = if (passwordVisible) {
-                                VisualTransformation.None
-                            } else {
-                                PasswordVisualTransformation()
-                            },
+                            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                             trailingIcon = {
                                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
                                     Icon(
-                                        imageVector = if (passwordVisible) {
-                                            Icons.Filled.Visibility
-                                        } else {
-                                            Icons.Filled.VisibilityOff
-                                        },
-                                        contentDescription = if (passwordVisible) {
-                                            "Hide password"
-                                        } else {
-                                            "Show password"
-                                        }
+                                        imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                        contentDescription = if (passwordVisible) "Hide password" else "Show password"
                                     )
                                 }
                             }
                         )
-
-                        // Date of Birth
                         OutlinedTextField(
                             value = selectedDate,
                             onValueChange = { /* Readonly */ },
@@ -267,14 +271,10 @@ fun SignUpScreen(navController: NavController) {
                             readOnly = true,
                             trailingIcon = {
                                 IconButton(onClick = { showDatePicker = true }) {
-                                    Icon(
-                                        imageVector = Icons.Default.CalendarToday,
-                                        contentDescription = "Select date"
-                                    )
+                                    Icon(imageVector = Icons.Default.CalendarToday, contentDescription = "Select date")
                                 }
                             }
                         )
-
                         Text(
                             text = "By creating an account, you agree to ShoeStore's Privacy Policy and Terms of Use.",
                             style = MaterialTheme.typography.bodySmall,
@@ -282,7 +282,6 @@ fun SignUpScreen(navController: NavController) {
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
-
                         Button(
                             onClick = {
                                 if (firstName.isBlank() || lastName.isBlank() || email.isBlank() ||
@@ -298,11 +297,95 @@ fun SignUpScreen(navController: NavController) {
                                     return@Button
                                 }
 
-                                FirebaseAuth.getInstance().createUserWithEmailAndPassword(email, password)
+                                // Tạo tài khoản để gửi email xác thực
+                                auth.createUserWithEmailAndPassword(email, password)
                                     .addOnCompleteListener { task ->
                                         if (task.isSuccessful) {
                                             val user = task.result?.user
                                             if (user != null) {
+                                                user.sendEmailVerification()
+                                                    .addOnCompleteListener { verifyTask ->
+                                                        if (verifyTask.isSuccessful) {
+                                                            Toast.makeText(
+                                                                context,
+                                                                "Email xác thực đã được gửi đến $email. Vui lòng bấm vào liên kết để xác nhận.",
+                                                                Toast.LENGTH_LONG
+                                                            ).show()
+                                                            isEmailSent = true
+                                                            // Đăng xuất để yêu cầu người dùng đăng nhập lại
+                                                            auth.signOut()
+                                                        } else {
+                                                            Toast.makeText(
+                                                                context,
+                                                                "Không thể gửi email xác thực: ${verifyTask.exception?.message}",
+                                                                Toast.LENGTH_LONG
+                                                            ).show()
+                                                        }
+                                                    }
+                                            } else {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Không tìm thấy thông tin người dùng sau khi tạo tài khoản",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        } else {
+                                            if (task.exception?.message?.contains("email address is already in use") == true) {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Email đã được sử dụng, vui lòng dùng email khác",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                            } else {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Email không tồn tại hoặc không hợp lệ: ${task.exception?.message}",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                            }
+                                        }
+                                    }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
+                            enabled = !isEmailSent || !isEmailVerified
+                        ) {
+                            Text("GỬI EMAIL XÁC THỰC", style = MaterialTheme.typography.labelLarge)
+                        }
+
+                        if (isEmailSent && !isEmailVerified) {
+                            Button(
+                                onClick = { checkEmailVerification() },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)
+                            ) {
+                                Text("KIỂM TRA LẠI", style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                if (firstName.isBlank() || lastName.isBlank() || email.isBlank() ||
+                                    password.isBlank() || selectedDate.isBlank()
+                                ) {
+                                    Toast.makeText(context, "Vui lòng điền đầy đủ thông tin", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+
+                                if (!isEmailVerified) {
+                                    Toast.makeText(context, "Vui lòng xác thực email trước khi đăng ký", Toast.LENGTH_LONG).show()
+                                    return@Button
+                                }
+
+                                auth.signInWithEmailAndPassword(email, password)
+                                    .addOnCompleteListener { task ->
+                                        if (task.isSuccessful) {
+                                            val user = task.result?.user
+                                            if (user != null && user.isEmailVerified) {
                                                 val userId = user.uid
                                                 val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
                                                     .withZone(ZoneId.of("Asia/Ho_Chi_Minh"))
@@ -314,13 +397,12 @@ fun SignUpScreen(navController: NavController) {
                                                     "email" to email,
                                                     "first_name" to firstName,
                                                     "last_name" to lastName,
-                                                    "created_at" to createdAt, // Thêm thời gian tạo tài khoản
-                                                    "role" to "user", // Vai trò mặc định
-                                                    "profile_image" to "" // Ảnh đại diện mặc định (rỗng)
+                                                    "created_at" to createdAt,
+                                                    "role" to "user",
+                                                    "profile_image" to ""
                                                 )
 
-                                                FirebaseFirestore.getInstance()
-                                                    .collection("users")
+                                                db.collection("users")
                                                     .document(userId)
                                                     .set(userMap)
                                                     .addOnSuccessListener {
@@ -329,13 +411,13 @@ fun SignUpScreen(navController: NavController) {
                                                             "Đăng ký thành công! Chào mừng $firstName $lastName",
                                                             Toast.LENGTH_LONG
                                                         ).show()
-                                                        // Xóa dữ liệu form
                                                         firstName = ""
                                                         lastName = ""
                                                         email = ""
                                                         password = ""
                                                         selectedDate = ""
-                                                        // Trì hoãn điều hướng
+                                                        isEmailSent = false
+                                                        isEmailVerified = false
                                                         Handler(Looper.getMainLooper()).postDelayed({
                                                             navController.navigate("home") {
                                                                 popUpTo("SignUpScreen") { inclusive = true }
@@ -352,33 +434,24 @@ fun SignUpScreen(navController: NavController) {
                                             } else {
                                                 Toast.makeText(
                                                     context,
-                                                    "Không tìm thấy thông tin người dùng sau khi đăng ký",
-                                                    Toast.LENGTH_SHORT
+                                                    "Email chưa được xác thực hoặc không tìm thấy người dùng",
+                                                    Toast.LENGTH_LONG
                                                 ).show()
                                             }
                                         } else {
-                                            if (task.exception?.message?.contains("email address is already in use") == true) {
-                                                Toast.makeText(
-                                                    context,
-                                                    "Email đã được sử dụng, vui lòng dùng email khác",
-                                                    Toast.LENGTH_LONG
-                                                ).show()
-                                            } else {
-                                                Toast.makeText(
-                                                    context,
-                                                    "Đăng ký thất bại: ${task.exception?.message}",
-                                                    Toast.LENGTH_LONG
-                                                ).show()
-                                            }
+                                            Toast.makeText(
+                                                context,
+                                                "Đăng nhập thất bại: ${task.exception?.message}",
+                                                Toast.LENGTH_LONG
+                                            ).show()
                                         }
                                     }
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(48.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.Black
-                            )
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
+                            enabled = isEmailVerified
                         ) {
                             Text("JOIN US", style = MaterialTheme.typography.labelLarge)
                         }

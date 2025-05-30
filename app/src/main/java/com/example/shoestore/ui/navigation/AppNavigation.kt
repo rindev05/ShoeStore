@@ -26,6 +26,12 @@ import com.example.shoestore.ui.profile.ProfileScreen
 import com.example.shoestore.ui.reviews.MyReviewsScreen
 import com.example.shoestore.ui.order.ProductReviewScreen
 import com.example.shoestore.ui.reviews.ReviewsEditScreen
+import com.example.shoestore.ui.screens.admin.AdminDashboardScreen
+import com.example.shoestore.ui.screens.admin.order.AdminOrderManagementScreen
+import com.example.shoestore.ui.screens.admin.product.AdminProductManagementScreen
+import com.example.shoestore.ui.screens.admin.user.AdminUserManagementScreen
+import com.example.shoestore.ui.screens.admin.account.ProfileAdmin
+import com.example.shoestore.ui.screens.admin.order.AdminOrderDetailScreen
 import com.example.shoestore.ui.splash.SplashScreen
 import com.example.shoestore.ui.welcome.WelcomeScreen
 
@@ -102,6 +108,27 @@ fun AppNavigation() {
             )
         ) { backStackEntry ->
             CheckoutScreen(navController, backStackEntry)
+        }
+
+        // Admin
+        composable("ProfileAdmin") { ProfileAdmin(navController) }
+        composable("AdminDashboard") { AdminDashboardScreen(navController) }
+        composable("AdminUserManagement") { AdminUserManagementScreen(navController) }
+        composable("AdminProductManagement") { AdminProductManagementScreen(navController) }
+        composable("AdminOrderManagement") { AdminOrderManagementScreen(navController) }
+
+        composable(
+            "AdminOrderDetailScreen?orderId={orderId}&userId={userId}",
+            arguments = listOf(
+                navArgument("orderId") { type = NavType.StringType; defaultValue = "" },
+                navArgument("userId") { type = NavType.StringType; defaultValue = "" }
+            )
+        ) { backStackEntry ->
+            AdminOrderDetailScreen(
+                navController = navController,
+                orderId = backStackEntry.arguments?.getString("orderId") ?: "",
+                userId = backStackEntry.arguments?.getString("userId") ?: ""
+            )
         }
 
 //        composable(
