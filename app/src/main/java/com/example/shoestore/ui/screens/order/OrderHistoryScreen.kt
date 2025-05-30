@@ -1,4 +1,4 @@
-package com.example.shoestore.ui.orderhistory
+package com.example.shoestore.ui.order
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -8,7 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -17,107 +17,105 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.example.shoestore.R
 import com.example.shoestore.ui.theme.ShoeStoreTheme
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.text.NumberFormat
 import java.util.Locale
 
-// Cập nhật data class Order để chứa đầy đủ thông tin chi tiết
+// Cập nhật data class Order để chứa thông tin cần thiết
 data class Order(
-    val orderId: String,
-    val status: String,
-    val address: String,
-    val name: String,
-    val phone: String,
-    val products: List<ProductItem>,
-    val totalPrice: Double,
-    val shippingFee: Double,
-    val discount: Double
-)
-
-data class ProductItem(
-    val productName: String,
-    val productPrice: Double,
-    val quantity: Int,
-    val imageResId: Int
+    val orderId: String = "",
+    val status: String = "",
+    val totalPrice: Double = 0.0,
+    val orderDate: String = ""
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrderHistoryScreen(navController: NavController) {
-    // Danh sách đơn hàng với đầy đủ thông tin
-    val orders = listOf(
-        Order(
-            orderId = "#12345",
-            status = "Chưa xác nhận",
-            address = "Trường Đại học Việt Hàn, Đường Trần Đại Nghĩa, Phường Hòa Quý, Quận Ngũ Hành Sơn, Đà Nẵng",
-            name = "Đăng Văn Rin",
-            phone = "0989554689",
-            products = listOf(
-                ProductItem(
-                    productName = "Nike Air Zoom Pegasus",
-                    productPrice = 2990000.0,
-                    quantity = 1,
-                    imageResId = R.drawable.s1
-                )
-            ),
-            totalPrice = 2990000.0,
-            shippingFee = 0.0,
-            discount = 0.0
-        ),
-        Order(
-            orderId = "#67890",
-            status = "Đang giao",
-            address = "123 Đường Lê Lợi, Quận 1, TP. Hồ Chí Minh",
-            name = "Nguyễn Văn A",
-            phone = "0912345678",
-            products = listOf(
-                ProductItem(
-                    productName = "Nike Air Max 90",
-                    productPrice = 3500000.0,
-                    quantity = 1,
-                    imageResId = R.drawable.s1
-                ),
-                ProductItem(
-                    productName = "Nike React Infinity",
-                    productPrice = 1490000.0,
-                    quantity = 1,
-                    imageResId = R.drawable.s1
-                )
-            ),
-            totalPrice = 4990000.0,
-            shippingFee = 0.0,
-            discount = 0.0
-        ),
-        Order(
-            orderId = "#11223",
-            status = "Đã giao hàng",
-            address = "456 Đường Nguyễn Huệ, Quận 3, TP. Hồ Chí Minh",
-            name = "Trần Thị B",
-            phone = "0934567890",
-            products = listOf(
-                ProductItem(
-                    productName = "Nike Air Force 1",
-                    productPrice = 2500000.0,
-                    quantity = 2,
-                    imageResId = R.drawable.s1
-                ),
-                ProductItem(
-                    productName = "Nike SB Dunk",
-                    productPrice = 2990000.0,
-                    quantity = 1,
-                    imageResId = R.drawable.s1
-                )
-            ),
-            totalPrice = 7990000.0,
-            shippingFee = 0.0,
-            discount = 0.0
-        )
-    )
+    val db = FirebaseFirestore.getInstance()
+    val user = FirebaseAuth.getInstance().currentUser
+    var orders by remember { mutableStateOf<List<Order>>(emptyList()) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Lấy danh sách đơn hàng từ Firestore
+    LaunchedEffect(user) {
+        if (user != null) {
+            coroutineScope.launch {
+                try {
+                    val snapshot = db.collection("users")
+                        .document(user.uid)
+                        .collection("orders")
+                        .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                        .get()
+                        .await()
+                    orders = snapshot.documents.mapNotNull { doc ->
+                        val data = doc.data
+                        data?.let {
+                            Order(
+                                orderId = it["orderId"] as? String ?: "",
+                                status = it["status"] as? String ?: "Chưa xác nhận",
+                                totalPrice = (it["totalPrice"] as? Number)?.toDouble() ?: 0.0,
+                                orderDate = it["orderDate"] as? String ?: ""
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    println("Error fetching orders: ${e.message}")
+                }
+            }
+        }
+    }
 
     ShoeStoreTheme {
         Scaffold(
-            // bottomBar = { com.example.shoestore.ui.profile.BottomNavigationBar(navController = navController) }
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            // Tiêu đề "LỊCH SỬ ĐẶT HÀNG" với nút quay lại
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                IconButton(
+                                    onClick = { navController.popBackStack() },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowBack,
+                                        contentDescription = "Back",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                Text(
+                                    text = "Lịch sử đặt hàng",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 20.sp,
+                                    color = Color.White,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.size(48.dp))
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color(0xFF1C2526)
+                    )
+                )
+            }
         ) { paddingValues ->
             Column(
                 modifier = Modifier
@@ -126,37 +124,6 @@ fun OrderHistoryScreen(navController: NavController) {
                     .background(Color(0xFF1C2526))
                     .padding(horizontal = 16.dp)
             ) {
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Tiêu đề "LỊCH SỬ ĐẶT HÀNG" với nút quay lại
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    IconButton(
-                        onClick = { navController.popBackStack() },
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    Text(
-                        text = "Lịch sử đặt hàng",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        color = Color.White,
-                        modifier = Modifier.weight(1f),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.size(48.dp))
-                }
-                Spacer(modifier = Modifier.height(4.dp))
                 Divider(
                     color = Color(0xFF2196F3),
                     thickness = 2.dp,
@@ -218,9 +185,15 @@ fun OrderItemRow(order: Order, navController: NavController) {
                 fontSize = 14.sp,
                 color = Color.White
             )
+            Text(
+                text = order.orderDate,
+                style = MaterialTheme.typography.bodyMedium,
+                fontSize = 12.sp,
+                color = Color.Gray
+            )
         }
         OutlinedButton(
-            onClick = { navController.navigate("OrderDetailScreen") },
+            onClick = { navController.navigate("OrderDetailScreen?orderId=${order.orderId}") },
             shape = RoundedCornerShape(8.dp),
             border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.dp),
             colors = ButtonDefaults.outlinedButtonColors(

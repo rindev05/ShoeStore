@@ -6,8 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,8 +19,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.shoestore.ui.theme.ShoeStoreTheme
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
-data class AddressDetail(
+data class AddressAdd(
     val fullName: String,
     val phoneNumber: String,
     val specificAddress: String,
@@ -29,10 +33,10 @@ data class AddressDetail(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddressDetailScreen(navController: NavController) {
+fun AddressAddScreen(navController: NavController) {
     var addressDetail by remember {
         mutableStateOf(
-            AddressDetail(
+            AddressAdd(
                 fullName = "Đăng Văn Rin",
                 phoneNumber = "0898554688",
                 specificAddress = "Apt 4B",
@@ -41,8 +45,13 @@ fun AddressDetailScreen(navController: NavController) {
         )
     }
 
+    val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
     ShoeStoreTheme {
-        Scaffold { paddingValues ->
+        Scaffold(
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+        ) { paddingValues ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -52,7 +61,6 @@ fun AddressDetailScreen(navController: NavController) {
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Tiêu đề "Địa chỉ nhận hàng" với nút quay lại
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -70,7 +78,7 @@ fun AddressDetailScreen(navController: NavController) {
                         )
                     }
                     Text(
-                        text = "Chỉnh sửa địa chỉ",
+                        text = "Thêm địa chỉ mới",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp,
@@ -78,12 +86,11 @@ fun AddressDetailScreen(navController: NavController) {
                         modifier = Modifier.weight(1f),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.size(48.dp)) // Để cân đối với IconButton
+                    Spacer(modifier = Modifier.size(48.dp))
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Họ và tên
                 Column {
                     Text(
                         text = "Họ và tên",
@@ -118,7 +125,6 @@ fun AddressDetailScreen(navController: NavController) {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Số điện thoại
                 Column {
                     Text(
                         text = "Số điện thoại",
@@ -130,7 +136,9 @@ fun AddressDetailScreen(navController: NavController) {
                     BasicTextField(
                         value = addressDetail.phoneNumber,
                         onValueChange = { newValue ->
-                            addressDetail = addressDetail.copy(phoneNumber = newValue)
+                            if (newValue.matches(Regex("^\\d{10,11}$"))) {
+                                addressDetail = addressDetail.copy(phoneNumber = newValue)
+                            }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -153,7 +161,6 @@ fun AddressDetailScreen(navController: NavController) {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Tỉnh/Thành phố, Quận/Huyện, Phường/Xã
                 Column {
                     Text(
                         text = "Tỉnh/Thành phố, Quận/Huyện, Phường/Xã",
@@ -188,7 +195,6 @@ fun AddressDetailScreen(navController: NavController) {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Tên đường, Tòa nhà, Số nhà
                 Column {
                     Text(
                         text = "Tên đường, Tòa nhà, Số nhà",
@@ -223,15 +229,50 @@ fun AddressDetailScreen(navController: NavController) {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Nút "Lưu địa chỉ"
                 Button(
-                    onClick = { /* Handle save address action */ },
+                    onClick = {
+                        val user = FirebaseAuth.getInstance().currentUser
+                        if (user != null) {
+                            if (addressDetail.fullName.isNotEmpty() && addressDetail.phoneNumber.isNotEmpty() &&
+                                addressDetail.specificAddress.isNotEmpty() && addressDetail.street.isNotEmpty()) {
+                                coroutineScope.launch {
+                                    try {
+                                        val db = FirebaseFirestore.getInstance()
+                                        val addressData = hashMapOf(
+                                            "fullName" to addressDetail.fullName,
+                                            "phoneNumber" to addressDetail.phoneNumber,
+                                            "specificAddress" to addressDetail.specificAddress,
+                                            "street" to addressDetail.street,
+                                            "timestamp" to System.currentTimeMillis()
+                                        )
+                                        db.collection("users")
+                                            .document(user.uid)
+                                            .collection("addresses")
+                                            .add(addressData)
+                                            .await()
+                                        snackbarHostState.showSnackbar("Đã thêm địa chỉ thành công!")
+                                        navController.popBackStack()
+                                    } catch (e: Exception) {
+                                        snackbarHostState.showSnackbar("Lỗi khi thêm địa chỉ: ${e.message}")
+                                    }
+                                }
+                            } else {
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("Vui lòng điền đầy đủ thông tin!")
+                                }
+                            }
+                        } else {
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar("Vui lòng đăng nhập để thêm địa chỉ!")
+                            }
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF2196F3),
+                        containerColor = Color.Green,
                         contentColor = Color.White
                     )
                 ) {
@@ -239,14 +280,14 @@ fun AddressDetailScreen(navController: NavController) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Save,
-                            contentDescription = "Save",
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add",
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Lưu địa chỉ",
+                            text = "Thêm địa chỉ mới",
                             fontSize = 16.sp
                         )
                     }

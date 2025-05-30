@@ -64,6 +64,9 @@ dependencies {
     // Coroutines để xử lý bất đồng bộ
     implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
+//    implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+    implementation ("androidx.compose.foundation:foundation:1.5.0")
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

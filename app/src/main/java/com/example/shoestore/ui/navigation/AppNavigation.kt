@@ -15,16 +15,16 @@ import com.example.shoestore.ui.auth.login.LoginScreen
 import com.example.shoestore.ui.auth.signup.SignUpScreen
 import com.example.shoestore.ui.cart.CartScreen
 import com.example.shoestore.ui.checkout.CheckoutScreen
-import com.example.shoestore.ui.order.OrderSuccessScreen
-import com.example.shoestore.ui.orderdetail.OrderDetailScreen
-import com.example.shoestore.ui.orderhistory.OrderHistoryScreen
+import com.example.shoestore.ui.checkout.OrderSuccessScreen
+import com.example.shoestore.ui.order.OrderDetailScreen
+import com.example.shoestore.ui.order.OrderHistoryScreen
 import com.example.shoestore.ui.screens.detail.ProductDetailScreen
 import com.example.shoestore.ui.screens.home.HomeScreen
 import com.example.shoestore.ui.screens.list.ProductListScreen
 import com.example.shoestore.ui.screens.search.SearchScreen
 import com.example.shoestore.ui.profile.ProfileScreen
 import com.example.shoestore.ui.reviews.MyReviewsScreen
-import com.example.shoestore.ui.reviews.ProductReviewScreen
+import com.example.shoestore.ui.order.ProductReviewScreen
 import com.example.shoestore.ui.reviews.ReviewsEditScreen
 import com.example.shoestore.ui.splash.SplashScreen
 import com.example.shoestore.ui.welcome.WelcomeScreen
@@ -39,17 +39,39 @@ fun AppNavigation() {
         composable("SearchScreen") { SearchScreen(navController) }
         composable("CartScreen") { CartScreen(navController) }
         composable("ProfileScreen") { ProfileScreen(navController) }
-//        composable("CheckoutScreen") { CheckoutScreen(navController) }
         composable("AccountScreen") { AccountScreen(navController) }
         composable("OrderHistoryScreen") { OrderHistoryScreen(navController) }
         composable("AddressScreen") { AddressScreen(navController) }
         composable("MyReviewsScreen") { MyReviewsScreen(navController) }
 
-        composable("OrderDetailScreen") {OrderDetailScreen(navController) }
-        composable("AddressDetailScreen") {AddressDetailScreen(navController) }
+//        composable("OrderDetailScreen") {OrderDetailScreen(navController) }
+
+        // Thêm route cho OrderDetailScreen với tham số orderId
+        composable(
+            route = "OrderDetailScreen?orderId={orderId}",
+            arguments = listOf(
+                navArgument("orderId") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                }
+            )
+        ) { backStackEntry ->
+            val orderId = backStackEntry.arguments?.getString("orderId") ?: ""
+            OrderDetailScreen(navController, orderId)
+        }
+
+        composable(
+            route = "AddressDetailScreen/{addressId}",
+            arguments = listOf(navArgument("addressId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val addressId = backStackEntry.arguments?.getString("addressId") ?: ""
+            AddressDetailScreen(navController, addressId)
+        }
+
         composable("AddressAddScreen") {AddressAddScreen(navController) }
         composable("ProductReviewScreen") {ProductReviewScreen(navController) }
         composable("ReviewsEditScreen") {ReviewsEditScreen(navController) }
+
         composable("OrderSuccessScreen") { OrderSuccessScreen(navController) }
 
         composable("LoginScreen") { LoginScreen(navController) }

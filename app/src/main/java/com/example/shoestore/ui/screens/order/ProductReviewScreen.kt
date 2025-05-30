@@ -1,4 +1,4 @@
-package com.example.shoestore.ui.reviews
+package com.example.shoestore.ui.order
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background

@@ -16,10 +16,7 @@ import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Money
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,29 +32,79 @@ import coil.compose.AsyncImage
 import com.example.shoestore.R
 import com.example.shoestore.ui.screens.detail.Product
 import com.example.shoestore.ui.theme.ShoeStoreTheme
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.text.NumberFormat
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 data class CartItem(val product: Product, val size: Int, val quantity: Int)
+data class Address(
+    val name: String,
+    val phone: String,
+    val details: String,
+    val isDefault: Boolean = false,
+    val id: String = ""
+)
+
+data class OrderItem(
+    val imageUrl: String,
+    val name: String,
+    val price: Double,
+    val quantity: Int,
+    val size: Int
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CheckoutScreen(navController: NavController, navBackStackEntry: NavBackStackEntry) {
     val args = navBackStackEntry.arguments
     val cartItems = remember { mutableStateListOf<CartItem>() }
+    val db = FirebaseFirestore.getInstance()
+    val user = FirebaseAuth.getInstance().currentUser
+    var defaultAddress by remember { mutableStateOf<Address?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    // Xử lý dữ liệu từ "Mua ngay" (một sản phẩm)
+    LaunchedEffect(user) {
+        if (user != null) {
+            try {
+                val snapshot = db.collection("users")
+                    .document(user.uid)
+                    .collection("addresses")
+                    .whereEqualTo("isDefault", true)
+                    .get()
+                    .await()
+                if (!snapshot.isEmpty) {
+                    val doc = snapshot.documents.first()
+                    defaultAddress = Address(
+                        id = doc.id,
+                        name = doc.getString("fullName") ?: "",
+                        phone = doc.getString("phoneNumber") ?: "",
+                        details = "${doc.getString("specificAddress") ?: ""}, ${doc.getString("street") ?: ""}",
+                        isDefault = true
+                    )
+                } else {
+                    defaultAddress = null
+                }
+            } catch (e: Exception) {
+                println("Error fetching default address: ${e.message}")
+            }
+        }
+    }
+
     val productId = args?.getInt("productId")
     val size = args?.getInt("size")
-
-    // Xử lý dữ liệu từ "Thanh toán" (danh sách giỏ hàng)
     val cartItemsParam = args?.getString("cartItems")
+    val isFromCart = cartItemsParam != null && cartItemsParam.isNotEmpty() // Kiểm tra nguồn từ "Thanh toán"
 
     LaunchedEffect(productId, size) {
         if (productId != null && size != null) {
-            println("Received args for Buy Now: productId=$productId, size=$size") // Thêm log để debug
+            println("Received args for Buy Now: productId=$productId, size=$size")
             val db = FirebaseFirestore.getInstance()
             val collections = listOf("products-bitis", "products-nike", "products-adidas")
 
@@ -92,15 +139,15 @@ fun CheckoutScreen(navController: NavController, navBackStackEntry: NavBackStack
 
             fetchedProduct?.let {
                 cartItems.clear()
-                cartItems.add(CartItem(it, size, 1)) // Mặc định quantity là 1 cho "Mua ngay"
-                println("Added CartItem for Buy Now: ${it.name}, size=$size, quantity=1") // Thêm log để debug
+                cartItems.add(CartItem(it, size, 1))
+                println("Added CartItem for Buy Now: ${it.name}, size=$size, quantity=1")
             }
         }
     }
 
     LaunchedEffect(cartItemsParam) {
         if (cartItemsParam != null && cartItemsParam.isNotEmpty()) {
-            println("Received cartItemsParam: $cartItemsParam") // Thêm log để debug
+            println("Received cartItemsParam: $cartItemsParam")
             val items = Uri.decode(cartItemsParam).split(";").mapNotNull { item ->
                 val parts = item.split(",")
                 if (parts.size == 3) {
@@ -148,15 +195,16 @@ fun CheckoutScreen(navController: NavController, navBackStackEntry: NavBackStack
             }
             cartItems.clear()
             cartItems.addAll(items)
-            println("Loaded ${cartItems.size} items from cartItemsParam") // Thêm log để debug
+            println("Loaded ${cartItems.size} items from cartItemsParam")
         }
     }
 
-    // Tính tổng tiền
     val totalPrice = cartItems.sumOf { it.product.price * it.quantity }
 
     ShoeStoreTheme {
-        Scaffold { paddingValues ->
+        Scaffold(
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+        ) { paddingValues ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -221,17 +269,26 @@ fun CheckoutScreen(navController: NavController, navBackStackEntry: NavBackStack
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp
                             )
-                            Text(
-                                text = "Đăng Văn Rin - 0989854691",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontSize = 14.sp
-                            )
-                            Text(
-                                text = "Trường Đại học Phùng Hòa Quý, Quận Ngũ Hành Sơn",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontSize = 14.sp,
-                                color = Color.Gray
-                            )
+                            if (defaultAddress != null) {
+                                Text(
+                                    text = "${defaultAddress!!.name} - ${defaultAddress!!.phone}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontSize = 14.sp
+                                )
+                                Text(
+                                    text = defaultAddress!!.details,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontSize = 14.sp,
+                                    color = Color.Gray
+                                )
+                            } else {
+                                Text(
+                                    text = "Chưa có địa chỉ mặc định. Vui lòng thêm địa chỉ!",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontSize = 14.sp,
+                                    color = Color.Red
+                                )
+                            }
                         }
                         Icon(
                             imageVector = Icons.Default.ArrowForward,
@@ -358,16 +415,16 @@ fun CheckoutScreen(navController: NavController, navBackStackEntry: NavBackStack
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Thanh toán qua MOMO",
+                                text = "Thanh toán khi nhận hàng",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontSize = 14.sp
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Image(
-                                painter = painterResource(id = R.drawable.momo_logo),
-                                contentDescription = "MOMO Logo",
-                                modifier = Modifier.size(24.dp)
-                            )
+//                            Image(
+//                                painter = painterResource(id = R.drawable.momo_logo),
+//                                contentDescription = "MOMO Logo",
+//                                modifier = Modifier.size(24.dp)
+//                            )
                         }
                         Icon(
                             imageVector = Icons.Default.ArrowForward,
@@ -461,7 +518,79 @@ fun CheckoutScreen(navController: NavController, navBackStackEntry: NavBackStack
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Button(
-                        onClick = { navController.navigate("OrderSuccessScreen") },
+                        onClick = {
+                            if (user != null) {
+                                if (defaultAddress != null) {
+                                    coroutineScope.launch {
+                                        try {
+                                            // Tạo mã đơn hàng ngẫu nhiên
+                                            val orderId = "ORDER-${UUID.randomUUID().toString().take(8).uppercase()}"
+                                            val orderDate = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
+                                            val orderItems = cartItems.map { item ->
+                                                OrderItem(
+                                                    imageUrl = item.product.imageUrl,
+                                                    name = item.product.name,
+                                                    price = item.product.price,
+                                                    quantity = item.quantity,
+                                                    size = item.size
+                                                )
+                                            }
+
+                                            // Lưu địa chỉ nhận hàng
+                                            val addressData = defaultAddress?.let {
+                                                hashMapOf(
+                                                    "name" to it.name,
+                                                    "phone" to it.phone,
+                                                    "details" to it.details
+                                                )
+                                            } ?: hashMapOf()
+
+                                            // Lưu đơn hàng vào Firestore
+                                            val orderData = hashMapOf(
+                                                "orderId" to orderId,
+                                                "orderDate" to orderDate,
+                                                "items" to orderItems,
+                                                "totalPrice" to totalPrice,
+                                                "address" to addressData,
+                                                "timestamp" to System.currentTimeMillis()
+                                            )
+
+                                            db.collection("users")
+                                                .document(user.uid)
+                                                .collection("orders")
+                                                .add(orderData)
+                                                .await()
+
+                                            // Xóa giỏ hàng nếu đặt từ "Thanh toán"
+                                            if (isFromCart) {
+                                                val cartSnapshot = db.collection("users")
+                                                    .document(user.uid)
+                                                    .collection("cart")
+                                                    .get()
+                                                    .await()
+                                                cartSnapshot.documents.forEach { doc ->
+                                                    doc.reference.delete().await()
+                                                }
+                                                snackbarHostState.showSnackbar("Đã xóa giỏ hàng!")
+                                            }
+
+                                            // Điều hướng đến OrderSuccessScreen với orderId
+                                            navController.navigate("OrderSuccessScreen?orderId=$orderId")
+                                        } catch (e: Exception) {
+                                            snackbarHostState.showSnackbar("Lỗi khi đặt hàng: ${e.message}")
+                                        }
+                                    }
+                                } else {
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Vui lòng chọn địa chỉ mặc định!")
+                                    }
+                                }
+                            } else {
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("Vui lòng đăng nhập để đặt hàng!")
+                                }
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp),
